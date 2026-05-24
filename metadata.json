@@ -1,0 +1,6 @@
+{
+  "name": "Fast Miner",
+  "description": "An ultra-fast cryptocurrency mining simulator with instant virtual payouts, hardware upgrades, and real-time market trading.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
