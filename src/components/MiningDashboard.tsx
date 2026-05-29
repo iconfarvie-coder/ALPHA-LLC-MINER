@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMining } from '../context/MiningContext';
-import { Zap, AlertTriangle, Cpu, Snowflake, Play, Square, RefreshCw, Flame, Coins, Gift, Calendar, Check, PlayCircle, PlusCircle, Sparkles, Clock, X, ChevronRight } from 'lucide-react';
+import { Zap, AlertTriangle, Cpu, Snowflake, Play, Square, RefreshCw, Flame, Coins, Gift, Calendar, Check, PlayCircle, PlusCircle, Sparkles, Clock, X, ChevronRight, Volume2, Vibrate, VolumeX, TrendingUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ClickParticle {
   id: number;
@@ -40,12 +41,39 @@ export const MiningDashboard: React.FC = () => {
     activateBoosterItem,
     notification,
     dismissNotification,
+    emergencyShutdown,
+    emergencyCooling,
   } = useMining();
 
   const [logs, setLogs] = useState<string[]>([]);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const particleIdRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  
+  // New States for Quick Actions and Feedbacks
+  const [showBoostStats, setShowBoostStats] = useState(false);
+  const [audioState, setAudioState] = useState<'sound'|'haptic'|'silent'>('sound');
+
+  const handleAudioCycle = () => {
+    setAudioState(prev => {
+      const next = prev === 'sound' ? 'haptic' : prev === 'haptic' ? 'silent' : 'sound';
+      if (next === 'haptic' && navigator.vibrate) navigator.vibrate(50);
+      return next;
+    });
+  };
+
+  const executeActionWithFeedback = (action: () => void) => {
+    action();
+    if (audioState === 'haptic' && navigator.vibrate) navigator.vibrate(40);
+  };
+
+  const handleBoostAll = () => {
+    executeActionWithFeedback(() => {
+      (['overclock', 'cryo', 'market'] as const).forEach(type => {
+        if (inventory[type] > 0) activateBoosterItem(type);
+      });
+    });
+  };
 
   const statsRef = useRef(stats);
   useEffect(() => {
@@ -386,7 +414,7 @@ export const MiningDashboard: React.FC = () => {
 
         {/* Cryptocurrency Selection Bar */}
         <div className="w-full bg-[#050505]/65 border border-white/5 p-1 rounded-xl flex items-center justify-between gap-1 z-10 font-mono mt-4">
-          {(['HSC', 'BTC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
+          {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
             const isActive = activeCrypto === c;
             const coinMeta = {
               HSC: { name: 'Hash', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -493,6 +521,80 @@ export const MiningDashboard: React.FC = () => {
               <span className="text-xs text-white/40 ml-1">MH/s</span>
             </div>
           </div>
+        </div>
+
+        {/* Quick Actions Control Bar */}
+        <div className="w-full mt-4 flex flex-wrap gap-2.5 relative z-10 font-mono border-t border-white/10 pt-4">
+          <button 
+            onClick={handleBoostAll}
+            className="flex-1 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/30 text-[9px] sm:text-[10px] text-white/70 hover:text-emerald-400 font-bold uppercase py-2 px-2 rounded-lg transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] active:opacity-70 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5"
+          >
+            <Sparkles className="h-3 w-3" />
+            <span>Boost All</span>
+          </button>
+          
+          <button 
+            onClick={() => executeActionWithFeedback(() => emergencyCooling())}
+            className="flex-1 bg-white/5 hover:bg-blue-500/10 border border-white/5 hover:border-blue-500/30 text-[9px] sm:text-[10px] text-white/70 hover:text-blue-400 font-bold uppercase py-2 px-2 rounded-lg transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] active:opacity-70 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5"
+          >
+            <Snowflake className="h-3 w-3" />
+            <span>Chill ($25)</span>
+          </button>
+
+          <button 
+            onClick={() => executeActionWithFeedback(() => setLogs([]))}
+            className="flex-1 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-[9px] sm:text-[10px] text-white/70 hover:text-white font-bold uppercase py-2 px-2 rounded-lg transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] active:opacity-70 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5"
+          >
+            <RefreshCw className="h-3 w-3 inline-block" />
+            <span>Clr Cache</span>
+          </button>
+
+          <button 
+            onClick={() => executeActionWithFeedback(() => emergencyShutdown())}
+            className="flex-1 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 hover:border-rose-500/30 text-[9px] sm:text-[10px] text-rose-400 hover:text-rose-300 font-extrabold uppercase py-2 px-2 rounded-lg transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] active:opacity-70 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap"
+          >
+            <Square className="h-3 w-3 fill-rose-500/30" />
+            <span>Shutdown</span>
+          </button>
+        </div>
+
+        <div className="w-full mt-2 flex gap-2.5 relative z-10 font-mono">
+           {/* Boost Stats Hover popup wrapper */}
+           <div className="relative flex-1 group">
+             <button 
+               onMouseEnter={() => setShowBoostStats(true)}
+               onMouseLeave={() => setShowBoostStats(false)}
+               className="w-full bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/20 text-[9px] sm:text-[10px] text-indigo-300 font-bold uppercase py-1.5 px-2 rounded-lg transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5"
+             >
+               <TrendingUp className="h-3 w-3" />
+               Boost Stats
+             </button>
+             <AnimatePresence>
+               {showBoostStats && (
+                 <motion.div 
+                   initial={{ opacity: 0, y: -10, x: "-50%" }}
+                   animate={{ opacity: 1, y: 0, x: "-50%" }}
+                   exit={{ opacity: 0, y: -10, x: "-50%" }}
+                   transition={{ duration: 0.2 }}
+                   className="absolute bottom-full left-1/2 mb-2 w-[160px] sm:w-48 bg-[#0a0a0a] border border-indigo-500/30 p-3 rounded-xl shadow-[0_4px_30px_rgba(99,102,241,0.15)] z-50 text-[10px]"
+                 >
+                   <span className="block text-indigo-400 font-black mb-1.5 border-b border-indigo-500/20 pb-1.5">LIVE MULTIPLIERS</span>
+                   <div className="flex justify-between mt-1"><span className="text-white/50">Hashrate:</span> <span>x{stats.efficiency.toFixed(1)}</span></div>
+                   <div className="flex justify-between mt-1"><span className="text-white/50">Power Draw:</span> <span>{stats.powerDraw}W</span></div>
+                   <div className="flex justify-between mt-1 pt-1.5 border-t border-white/5"><span className="text-white/50">Load:</span> <span className="font-bold">{(stats.hashRate / (stats.efficiency || 1)).toFixed(2)} Base</span></div>
+                 </motion.div>
+               )}
+             </AnimatePresence>
+           </div>
+           
+           <button 
+             onClick={() => executeActionWithFeedback(handleAudioCycle)}
+             className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] sm:text-[10px] text-white/70 font-bold uppercase py-1.5 px-2 rounded-lg transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5"
+           >
+             {audioState === 'sound' ? <Volume2 className="h-3 w-3 text-emerald-400" /> : audioState === 'haptic' ? <Vibrate className="h-3 w-3 text-amber-400" /> : <VolumeX className="h-3 w-3 text-white/30" />}
+             <span className="hidden sm:inline">{audioState === 'sound' ? 'Audio On' : audioState === 'haptic' ? 'Haptics Only' : 'Silent Mode'}</span>
+             <span className="inline sm:hidden">{audioState === 'sound' ? 'Audio' : audioState === 'haptic' ? 'Haptic' : 'Silent'}</span>
+           </button>
         </div>
 
         {/* CSS Keyframes injected directly */}

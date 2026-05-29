@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState } from '../types';
+import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile } from '../types';
 import { INITIAL_UPGRADES, NEWS_TEMPLATES } from '../data';
 
 interface MiningContextType {
@@ -20,7 +20,7 @@ interface MiningContextType {
   buyUpgrade: (id: string) => boolean;
   sellCoins: (amount: number) => void;
   sellAllCoins: () => void;
-  requestPayout: (address: string, usdAmount: number) => { success: boolean; message: string; tx?: PayoutTransaction };
+  requestPayout: (address: string, usdAmount: number, gateway?: 'paypal' | 'bank' | 'wallet', gatewayDetails?: string) => { success: boolean; message: string; tx?: PayoutTransaction };
   setPayoutAddress: (address: string) => void;
   resetProgress: () => void;
 
@@ -52,6 +52,15 @@ interface MiningContextType {
   activateBoosterItem: (boosterType: 'overclock' | 'cryo' | 'market') => { success: boolean; message: string };
   notification: string | null;
   dismissNotification: () => void;
+
+  // Real-Fake Secure One-Tap Account Authentication
+  user: UserProfile | null;
+  login: (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string) => void;
+  logout: () => void;
+
+  // Emergency actions
+  emergencyShutdown: () => void;
+  emergencyCooling: () => boolean;
 }
 
 const MiningContext = createContext<MiningContextType | undefined>(undefined);
@@ -67,7 +76,7 @@ export const useMining = () => {
 export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // --- Game Currencies & Settings ---
   const [activeCrypto, setActiveCryptoState] = useState<string>(() => {
-    return localStorage.getItem('fast_miner_active_crypto') || 'HSC';
+    return localStorage.getItem('fast_miner_active_crypto') || 'BTC';
   });
 
   // --- One-tap Auto Mining Cluster Core ---
@@ -172,7 +181,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (e) {}
     }
     const initialHistories: Record<string, PriceDataPoint[]> = {};
-    const coinsKeys = ['HSC', 'BTC', 'ETH', 'SOL', 'DOGE'];
+    const coinsKeys = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'];
     const basePrices: Record<string, number> = { HSC: 142.50, BTC: 96500.00, ETH: 3450.00, SOL: 185.00, DOGE: 0.38 };
     
     coinsKeys.forEach(k => {
@@ -204,7 +213,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [coins, setCoins] = useState<number>(() => {
     const savedBalances = localStorage.getItem('fast_miner_balances');
-    const active = localStorage.getItem('fast_miner_active_crypto') || 'HSC';
+    const active = localStorage.getItem('fast_miner_active_crypto') || 'BTC';
     if (savedBalances) {
       try {
         const parsed = JSON.parse(savedBalances);
@@ -219,6 +228,65 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saved = localStorage.getItem('fast_miner_usd');
     return saved ? parseFloat(saved) : 0;
   });
+
+  // --- Real-Fake Secure One-Tap Account Authentication ---
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('fast_miner_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  });
+
+  const login = (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string) => {
+    let formattedName = name || '';
+    let email: string | undefined = undefined;
+    let phone: string | undefined = undefined;
+    
+    if (provider === 'google') {
+      email = identifier;
+      if (!formattedName) {
+        const localPart = identifier.split('@')[0];
+        formattedName = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+      }
+    } else if (provider === 'apple') {
+      email = identifier;
+      formattedName = formattedName || 'Apple Member';
+    } else {
+      phone = identifier;
+      formattedName = formattedName || 'User ' + identifier.slice(-4);
+    }
+
+    const newUser: UserProfile = {
+      uid: 'user_' + Math.random().toString(36).substring(2, 11),
+      name: formattedName,
+      email,
+      phone,
+      provider,
+      verified: true,
+      createdAt: Date.now(),
+      avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(formattedName)}`
+    };
+
+    setUser(newUser);
+    localStorage.setItem('fast_miner_user', JSON.stringify(newUser));
+    
+    // Also store active wallet address/paypal email if not set
+    if (provider === 'google' && email) {
+      localStorage.setItem('fast_miner_paypal_email', email);
+    }
+
+    setNotification(`🎉 Connected securely via ${provider.toUpperCase()}! Cloud synchronization completed.`);
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('fast_miner_user');
+    setNotification("Successfully signed out. Local device session active.");
+  };
+
   const [lifetimeMined, setLifetimeMined] = useState<number>(() => {
     const saved = localStorage.getItem('fast_miner_lifetime');
     return saved ? parseFloat(saved) : 0;
@@ -294,7 +362,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (saved) return saved;
     // Generate a beautiful mock BCH/BTC wallet address on first load
     const hex = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    let addr = 'HSC_';
+    let addr = 'bc1qp';
     for (let i = 0; i < 28; i++) {
       addr += hex.charAt(Math.floor(Math.random() * hex.length));
     }
@@ -802,7 +870,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const txTimer = setInterval(() => {
       const { activeCrypto: curCrypto, isClusterAutoMining: curCluster, prices: curPrices } = miningStateRef.current;
-      const cryptos = ['HSC', 'BTC', 'ETH', 'SOL', 'DOGE'];
+      const cryptos = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'];
       const randomCrypto = cryptos[Math.floor(Math.random() * cryptos.length)];
       
       const addresses = {
@@ -916,6 +984,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Buy Hardware Upgrades
   const buyUpgrade = (id: string): boolean => {
     let success = false;
+    
+    const currentTotalEarnings = usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+      const actualAmt = crypto === activeCrypto ? coins : amt;
+      const price = prices[crypto] || 0;
+      return acc + (actualAmt * price);
+    }, 0);
+
     setUpgrades(curUpgrades => {
       const targetIndex = curUpgrades.findIndex(u => u.id === id);
       if (targetIndex === -1) return curUpgrades;
@@ -923,10 +998,49 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const item = curUpgrades[targetIndex];
       if (item.level >= item.maxLevel) return curUpgrades;
       
-      // Upgrade checks using USD wallet instead of coins – making trading/selling essential!
-      if (usd >= item.cost) {
-        setUsd(curr => curr - item.cost);
+      if (currentTotalEarnings >= item.cost) {
         success = true;
+
+        let remaining = item.cost;
+        if (usd >= remaining) {
+          setUsd(curr => curr - remaining);
+          remaining = 0;
+        } else {
+          remaining -= usd;
+          setUsd(0);
+        }
+
+        if (remaining > 0) {
+          const activeCryptoValue = coins * marketPrice;
+          if (activeCryptoValue >= remaining) {
+            const coinsToDeduct = remaining / marketPrice;
+            setCoins(c => Math.max(0, c - coinsToDeduct));
+            remaining = 0;
+          } else {
+            remaining -= activeCryptoValue;
+            setCoins(0);
+            setBalances(prev => {
+              const updated = { ...prev };
+              updated[activeCrypto] = 0;
+              const cryptos = Object.keys(updated);
+              for (const crypto of cryptos) {
+                if (remaining <= 0) break;
+                const price = prices[crypto] || 0;
+                if (price <= 0) continue;
+                const val = updated[crypto] * price;
+                if (val >= remaining) {
+                  updated[crypto] -= remaining / price;
+                  remaining = 0;
+                } else {
+                  remaining -= val;
+                  updated[crypto] = 0;
+                }
+              }
+              localStorage.setItem('fast_miner_balances', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
 
         const nextLevel = item.level + 1;
         const nextCost = Math.round(item.baseCost * Math.pow(item.costMultiplier, nextLevel));
@@ -1064,16 +1178,62 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // --- Real-Fake Fast, Instant, Satisfying Blockchain Payout Processing! ---
-  const requestPayout = (address: string, usdAmount: number) => {
-    if (!address || address.length < 8) {
-      return { success: false, message: 'Invalid wallet address destination.' };
+  const requestPayout = (address: string, usdAmount: number, gateway: 'paypal' | 'bank' | 'wallet' = 'wallet', gatewayDetails?: string) => {
+    if (!address || address.length < 5) {
+      return { success: false, message: 'Invalid target destination identifier.' };
     }
     if (usdAmount < 5.0) {
       return { success: false, message: 'Minimum payout limit is $5.00 USD.' };
     }
-    if (usd >= usdAmount) {
+
+    const currentTotalEarnings = usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+      const actualAmt = crypto === activeCrypto ? coins : amt;
+      const price = prices[crypto] || 0;
+      return acc + (actualAmt * price);
+    }, 0);
+
+    if (currentTotalEarnings >= usdAmount) {
       // Deduct funds immediately
-      setUsd(u => u - usdAmount);
+      let remaining = usdAmount;
+      if (usd >= remaining) {
+        setUsd(u => u - remaining);
+        remaining = 0;
+      } else {
+        remaining -= usd;
+        setUsd(0);
+      }
+
+      if (remaining > 0) {
+        const activeCryptoValue = coins * marketPrice;
+        if (activeCryptoValue >= remaining) {
+          const coinsToDeduct = remaining / marketPrice;
+          setCoins(c => Math.max(0, c - coinsToDeduct));
+          remaining = 0;
+        } else {
+          remaining -= activeCryptoValue;
+          setCoins(0);
+          setBalances(prev => {
+            const updated = { ...prev };
+            updated[activeCrypto] = 0;
+            const cryptos = Object.keys(updated);
+            for (const crypto of cryptos) {
+              if (remaining <= 0) break;
+              const price = prices[crypto] || 0;
+              if (price <= 0) continue;
+              const val = updated[crypto] * price;
+              if (val >= remaining) {
+                updated[crypto] -= remaining / price;
+                remaining = 0;
+              } else {
+                remaining -= val;
+                updated[crypto] = 0;
+              }
+            }
+            localStorage.setItem('fast_miner_balances', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }
 
       const hscEquiv = usdAmount / marketPrice;
       const characters = '0123456789abcdef';
@@ -1095,7 +1255,9 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         fee: Number((usdAmount * 0.015).toFixed(4)), // 1.5% network fee
         blockNumber: blockNum,
         type: 'cash',
-        crypto: 'HSC'
+        crypto: activeCrypto,
+        gateway,
+        gatewayDetails
       };
 
       // Push into pending payouts
@@ -1207,7 +1369,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     isThrottledRef.current = false;
     setActiveTab('mine');
 
-    setActiveCryptoState('HSC');
+    setActiveCryptoState('BTC');
     setBalances({
       HSC: 0,
       BTC: 0,
@@ -1240,10 +1402,37 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setNotification("Simulator restarted to Genesis Blocks successfully!");
   };
 
+  const emergencyShutdown = () => {
+    setIsClusterAutoMining(false);
+    tempRef.current = 32.0;
+    isThrottledRef.current = false;
+    setStats(prev => ({ ...prev, temperature: 32.0, throttled: false }));
+    setNotification("EMERGENCY SHUTDOWN INITIATED. Cluster halted, thermal build-up cleared.");
+  };
+
+  const emergencyCooling = () => {
+    if (usd >= 25) {
+      setUsd(u => u - 25);
+      tempRef.current = 32.0;
+      isThrottledRef.current = false;
+      setStats(prev => ({ ...prev, temperature: 32.0, throttled: false }));
+      setNotification("EMERGENCY COOLING ACTIVATED. -$25.00 | Thermals Reset.");
+      return true;
+    }
+    setNotification("Emergency Cooling failed: Requires $25.00.");
+    return false;
+  };
+
+  const totalEarnings = usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+    const actualAmt = crypto === activeCrypto ? coins : amt;
+    const price = prices[crypto] || 0;
+    return acc + (actualAmt * price);
+  }, 0);
+
   return (
     <MiningContext.Provider value={{
       coins,
-      usd,
+      usd: totalEarnings,
       lifetimeMined,
       upgrades,
       stats,
@@ -1291,6 +1480,15 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activateBoosterItem,
       notification,
       dismissNotification,
+
+      // Authentication
+      user,
+      login,
+      logout,
+      
+      // Emergency Actions
+      emergencyShutdown,
+      emergencyCooling,
     }}>
       {children}
     </MiningContext.Provider>

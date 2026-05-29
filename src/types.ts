@@ -28,6 +28,8 @@ export interface PayoutTransaction {
   blockNumber: number;
   type?: 'cash' | 'crypto';
   crypto?: string;
+  gateway?: 'paypal' | 'bank' | 'wallet';
+  gatewayDetails?: string;
 }
 
 export interface PriceDataPoint {
@@ -78,4 +80,16 @@ export interface DailyRewardState {
   lastClaimTime: number; // timestamp
   hasClaimedToday: boolean;
 }
+
+export interface UserProfile {
+  uid: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  provider: 'google' | 'apple' | 'phone';
+  avatarUrl?: string;
+  verified: boolean;
+  createdAt: number;
+}
+
 

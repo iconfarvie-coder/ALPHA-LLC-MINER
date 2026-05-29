@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MiningProvider, useMining } from './context/MiningContext';
 import { MetricCard } from './components/MetricCard';
 import { MiningDashboard } from './components/MiningDashboard';
 import { RigUpgrades } from './components/RigUpgrades';
 import { MarketChart } from './components/MarketChart';
 import { PayoutConsole } from './components/PayoutConsole';
-import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign } from 'lucide-react';
+import { UserAuthModal } from './components/UserAuthModal';
+import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign, ShieldCheck } from 'lucide-react';
 
 function AppContent() {
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const {
     activeTab,
     setActiveTab,
@@ -18,6 +20,7 @@ function AppContent() {
     selectedCurrency,
     setSelectedCurrency,
     formatVal,
+    user,
   } = useMining();
 
   // Tab configurations
@@ -82,6 +85,36 @@ function AppContent() {
               </div>
             </div>
 
+            {/* Direct One-Tap Account Authentication Widget */}
+            <div className="relative shrink-0">
+              {user ? (
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="bg-[#0f1f18] border border-emerald-500/20 text-emerald-400 hover:border-emerald-500/40 rounded-xl h-9 px-3 text-[11px] font-bold flex items-center gap-2 cursor-pointer transition-all"
+                >
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    className="w-5 h-5 rounded-full border border-emerald-400"
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="hidden md:inline font-semibold text-white/95 truncate max-w-[80px]">
+                    {user.name}
+                  </span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="bg-gradient-to-tr from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-400 rounded-xl h-9 px-3 text-[11px] font-extrabold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/5 hover:shadow-emerald-500/10"
+                >
+                  <ShieldCheck className="h-4.5 w-4.5 stroke-[2.5]" />
+                  <span className="hidden sm:inline">Sync Portal</span>
+                  <span className="sm:hidden">Sync</span>
+                </button>
+              )}
+            </div>
+
             {/* Live rates currency type switcher */}
             <div className="relative">
               <select
@@ -143,9 +176,9 @@ function AppContent() {
             glow={stats.temperature > 85}
           />
           <MetricCard
-            title={`Virtual Bank Wallet (${selectedCurrency})`}
+            title={`Cash Balance (${selectedCurrency})`}
             value={formatVal(usd)}
-            subtext="Payouts fully instant"
+            subtext="Total earnings available"
             iconName="Wallet"
             color="green"
             glow={usd >= 5.0}
@@ -196,6 +229,8 @@ function AppContent() {
           </p>
         </div>
       </footer>
+
+      <UserAuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
 
     </div>
   );

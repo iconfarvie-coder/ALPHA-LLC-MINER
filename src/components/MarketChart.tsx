@@ -12,6 +12,7 @@ export const MarketChart: React.FC = () => {
     activeNews,
     sellCoins,
     sellAllCoins,
+    formatVal,
   } = useMining();
 
   const [chartType, setChartType] = useState<'line' | 'candlestick'>('line');
@@ -274,9 +275,9 @@ export const MarketChart: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs p-3 bg-[#050505] rounded-xl border border-white/10">
-                <span className="text-white/40">USD Balance:</span>
+                <span className="text-white/40">Cash Balance:</span>
                 <span className="font-bold text-emerald-400">
-                  ${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatVal(usd)}
                 </span>
               </div>
             </div>
