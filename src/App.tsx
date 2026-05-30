@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { MiningProvider, useMining } from './context/MiningContext';
 import { MetricCard } from './components/MetricCard';
 import { MiningDashboard } from './components/MiningDashboard';
@@ -243,6 +244,7 @@ export default function App() {
   return (
     <MiningProvider>
       <AppContent />
+      <Analytics />
     </MiningProvider>
   );
 }
