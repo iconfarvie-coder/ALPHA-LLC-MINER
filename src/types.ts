@@ -22,6 +22,7 @@ export interface PayoutTransaction {
   amountUSD: number;
   address: string;
   status: 'pending' | 'processing' | 'confirmed';
+  verificationStatus?: 'unverified' | 'verifying' | 'verified';
   timestamp: number;
   txHash: string;
   fee: number;

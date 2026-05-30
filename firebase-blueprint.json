@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores user identity, balance details, and mining upgrades data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "name": { "type": "string", "description": "Display name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address of the user" },
+        "provider": { "type": "string", "enum": ["google", "apple", "phone"], "description": "Authentication provider" },
+        "coins": { "type": "number", "description": "Active HSC coins mined" },
+        "usd": { "type": "number", "description": "USD balance balance" },
+        "lifetimeMined": { "type": "number", "description": "Total value of coins ever mined" },
+        "createdAt": { "type": "number", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "name", "provider", "coins", "usd", "lifetimeMined", "createdAt"]
+    },
+    "PayoutTransaction": {
+      "title": "PayoutTransaction",
+      "description": "Represents a cash or crypto withdrawal request for verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction ID" },
+        "amountCoin": { "type": "number", "description": "Coin transaction amount" },
+        "amountUSD": { "type": "number", "description": "USD transaction amount shadow" },
+        "address": { "type": "string", "description": "Receiver wallet hash or account details" },
+        "status": { "type": "string", "enum": ["pending", "processing", "confirmed"], "description": "Blockchain execution status" },
+        "verificationStatus": { "type": "string", "enum": ["unverified", "verifying", "verified"], "description": "Payout compliance AML security status" },
+        "timestamp": { "type": "number", "description": "Payout request timestamp in ms" },
+        "txHash": { "type": "string", "description": "Unique cryptographic transaction hash proof" },
+        "fee": { "type": "number", "description": "Transaction network gas fees paid" },
+        "blockNumber": { "type": "number", "description": "Dispatched block height number" },
+        "type": { "type": "string", "enum": ["cash", "crypto"], "description": "Payment route class" },
+        "crypto": { "type": "string", "description": "Shorthand currency label" },
+        "gateway": { "type": "string", "enum": ["paypal", "bank", "wallet"], "description": "Clearing channel route type" },
+        "gatewayDetails": { "type": "string", "description": "Human friendly coordinate details" }
+      },
+      "required": ["id", "amountCoin", "amountUSD", "address", "status", "verificationStatus", "timestamp", "txHash", "fee", "blockNumber", "type", "crypto", "gateway"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private profile document for each registered miner containing game state"
+    },
+    "users/{userId}/payouts/{payoutId}": {
+      "schema": "PayoutTransaction",
+      "description": "Verified transaction ledgers belonging to the specific miner"
+    }
+  }
+}

@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Catch-all Default-Deny Security Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive / Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- UserProfile validation helper ---
+    function isValidUserProfile(data) {
+      return data.uid is string && data.uid.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && (data.email == null || (data.email is string && data.email.size() <= 200))
+        && (data.phone == null || (data.phone is string && data.phone.size() <= 30))
+        && data.provider is string && (data.provider == 'google' || data.provider == 'apple' || data.provider == 'phone')
+        && data.coins is number && data.coins >= 0
+        && data.usd is number && data.usd >= 0
+        && data.lifetimeMined is number && data.lifetimeMined >= 0
+        && data.createdAt is number;
+    }
+
+    // --- PayoutTransaction validation helper ---
+    function isValidPayoutTransaction(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.amountCoin is number && data.amountCoin >= 0
+        && data.amountUSD is number && data.amountUSD >= 0
+        && data.address is string && data.address.size() <= 500
+        && data.status is string && (data.status == 'pending' || data.status == 'processing' || data.status == 'confirmed')
+        && data.verificationStatus is string && (data.verificationStatus == 'unverified' || data.verificationStatus == 'verifying' || data.verificationStatus == 'verified')
+        && data.timestamp is number
+        && data.txHash is string && data.txHash.size() <= 128
+        && data.fee is number && data.fee >= 0
+        && data.blockNumber is number;
+    }
+
+    // --- User Profile Document Matching ---
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      
+      allow create: if isOwner(userId) 
+        && isEmailVerified() 
+        && isValidUserProfile(request.resource.data);
+        
+      allow update: if isOwner(userId) 
+        && isEmailVerified() 
+        && isValidUserProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.uid == resource.data.uid;
+        
+      allow delete: if false;
+
+      // --- Payout Subcollection Document Matching ---
+      match /payouts/{payoutId} {
+        allow read: if isOwner(userId);
+        
+        allow create: if isOwner(userId)
+          && isEmailVerified()
+          && isValidId(payoutId)
+          && request.resource.data.id == payoutId
+          && isValidPayoutTransaction(request.resource.data)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.verificationStatus == 'unverified';
+          
+        allow update: if isOwner(userId)
+          && isEmailVerified()
+          && isValidId(payoutId)
+          && request.resource.data.id == payoutId
+          && isValidPayoutTransaction(request.resource.data)
+          && (
+            // Action 1: Elevate verification status from unverified -> verifying -> verified
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verificationStatus', 'status']) && (
+              (resource.data.verificationStatus == 'unverified' && request.resource.data.verificationStatus == 'verifying') ||
+              (resource.data.verificationStatus == 'verifying' && request.resource.data.verificationStatus == 'verified')
+            )) ||
+            // Action 2: Update status from pending -> processing -> confirmed once verificationStatus is verified
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && resource.data.verificationStatus == 'verified' && (
+              (resource.data.status == 'pending' && request.resource.data.status == 'processing') ||
+              (resource.data.status == 'processing' && request.resource.data.status == 'confirmed')
+            ))
+          );
+          
+        allow delete: if isOwner(userId)
+          && isEmailVerified()
+          && resource.data.status == 'pending'
+          && resource.data.verificationStatus == 'unverified';
+      }
+    }
+  }
+}

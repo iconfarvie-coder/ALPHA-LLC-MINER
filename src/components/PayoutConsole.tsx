@@ -24,6 +24,10 @@ export const PayoutConsole: React.FC = () => {
     selectedCurrency,
     currencySymbols,
     formatVal,
+
+    // Secure authentication & verification
+    user,
+    verifyPayout,
   } = useMining();
 
   const [payoutInput, setPayoutInput] = useState<string>(payoutAddress);
@@ -826,6 +830,78 @@ export const PayoutConsole: React.FC = () => {
                               </div>
                             </div>
                           </div>
+                        </div>
+
+                        {/* Compliance & Verification Panel */}
+                        <div className="p-3 bg-white/[0.01]/70 border border-white/5 rounded-xl space-y-2 mt-1">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-white/40 uppercase tracking-wider text-[8px] font-bold">Ledger Safety Level</span>
+                            {(!tx.verificationStatus || tx.verificationStatus === 'unverified') ? (
+                              <div className="text-red-400 font-bold flex items-center gap-1">
+                                <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                                <span>UNVERIFIED</span>
+                              </div>
+                            ) : tx.verificationStatus === 'verifying' ? (
+                              <div className="text-amber-400 font-bold flex items-center gap-1 animate-pulse">
+                                <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin" />
+                                <span>AUDITING PROOFS...</span>
+                              </div>
+                            ) : (
+                              <div className="text-emerald-400 font-bold flex items-center gap-1">
+                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                <span>VERIFIED PROOF APPROVED</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {(!tx.verificationStatus || tx.verificationStatus === 'unverified') && (
+                            <div className="bg-[#120808]/70 border border-red-950/40 p-2.5 rounded-lg text-[9px] text-[#e0a0a0] leading-relaxed text-left">
+                              {user && !user.uid.startsWith('user_') ? (
+                                <div className="space-y-2.5">
+                                  <p className="text-red-350/90">AML compliance audit and decentralized ZK transaction dispatch verification are pending. Complete safety check to clear settlement payout.</p>
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        await verifyPayout(tx.id);
+                                      } catch(err) {
+                                        console.error(err);
+                                      }
+                                    }}
+                                    className="w-full h-8 bg-red-500 hover:bg-red-400 text-slate-950 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                                  >
+                                    <ShieldCheck className="h-3.5 w-3.5 text-slate-950" />
+                                    <span>Verify Payout AML Compliance Check</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-white/40">
+                                  🔒 Authentication required: Please login with your secure Google Account to activate the payment verification pipeline and sync records to your block profile.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {tx.verificationStatus === 'verifying' && (
+                            <div className="bg-[#100c06] border border-amber-950/40 p-2.5 rounded-lg text-[9px] text-amber-300 leading-relaxed text-left space-y-1.5">
+                              <p className="animate-pulse font-bold text-amber-400">Verifying Cryptographic Credentials...</p>
+                              <p className="text-white/55">Executing zero-knowledge credential solvers and cross-analyzing ledger constraints against the europe-west2 cloud pipeline.</p>
+                              <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden mt-1 relative">
+                                <div className="bg-amber-400 h-full rounded-full animate-pulse" style={{ width: '75%' }} />
+                              </div>
+                            </div>
+                          )}
+
+                          {tx.verificationStatus === 'verified' && (
+                            <div className="bg-[#08120c] border border-emerald-950/40 p-2.5 rounded-lg text-[9px] text-emerald-350 leading-relaxed text-left flex items-start gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <p className="font-bold text-white/90">AML Compliance Clear</p>
+                                <p className="text-white/45">Ledger state successfully backed by decentralized Firestore guarantees. Secure payout settlement confirmed.</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Actions Line inside expanded panel */}

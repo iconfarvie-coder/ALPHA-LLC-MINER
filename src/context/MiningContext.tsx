@@ -55,8 +55,9 @@ interface MiningContextType {
 
   // Real-Fake Secure One-Tap Account Authentication
   user: UserProfile | null;
-  login: (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string) => void;
+  login: (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string, uid?: string) => void;
   logout: () => void;
+  verifyPayout: (txId: string) => Promise<{ success: boolean; message: string }>;
 
   // Emergency actions
   emergencyShutdown: () => void;
@@ -240,7 +241,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return null;
   });
 
-  const login = (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string) => {
+  const login = async (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string, uid?: string) => {
     let formattedName = name || '';
     let email: string | undefined = undefined;
     let phone: string | undefined = undefined;
@@ -260,7 +261,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const newUser: UserProfile = {
-      uid: 'user_' + Math.random().toString(36).substring(2, 11),
+      uid: uid || 'user_' + Math.random().toString(36).substring(2, 11),
       name: formattedName,
       email,
       phone,
@@ -279,6 +280,32 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     setNotification(`🎉 Connected securely via ${provider.toUpperCase()}! Cloud synchronization completed.`);
+
+    // If real Firebase Auth user, load from Firestore or create profile
+    if (newUser.uid && !newUser.uid.startsWith('user_')) {
+      try {
+        const { getUserProfile, saveUserProfile, getPayoutTransactions } = await import('../firebaseSync');
+        const dbProfile = await getUserProfile(newUser.uid);
+        if (dbProfile) {
+          if (dbProfile.coins !== undefined) setCoins(dbProfile.coins);
+          if (dbProfile.usd !== undefined) setUsd(dbProfile.usd);
+          if (dbProfile.lifetimeMined !== undefined) setLifetimeMined(dbProfile.lifetimeMined);
+          
+          const dbPayouts = await getPayoutTransactions(newUser.uid);
+          if (dbPayouts && dbPayouts.length > 0) {
+            setPayouts(dbPayouts);
+            localStorage.setItem('fast_miner_payouts', JSON.stringify(dbPayouts));
+          }
+          setNotification(`🎉 Sync Success: Securely loaded historical stats from your Cloud Profile Ledger.`);
+        } else {
+          // Initialize user profile document in Firestore
+          await saveUserProfile(newUser.uid, newUser, coins, usd, lifetimeMined);
+          setNotification(`🎉 Sync Success: Provisioned a secure node profile on the Cloud Ledger.`);
+        }
+      } catch (err: any) {
+        console.error('Error synchronizing with Firestore database state on login:', err);
+      }
+    }
   };
 
   const logout = async () => {
@@ -634,6 +661,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     coins,
     usd,
     lifetimeMined,
+    user,
   });
 
   // Keep the ref updated on every render
@@ -648,8 +676,9 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       coins,
       usd,
       lifetimeMined,
+      user,
     };
-  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined]);
+  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user]);
 
   // Auto-save fast-changing variables periodically (every 3 seconds) to prevent heavy main thread blocking
   useEffect(() => {
@@ -1065,19 +1094,41 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Convert Coin to cash
-  const sellCoins = (amount: number) => {
+  const sellCoins = async (amount: number) => {
     if (coins >= amount && amount > 0) {
       const gainedUSD = amount * marketPrice;
-      setCoins(c => c - amount);
-      setUsd(u => u + gainedUSD);
+      const nextCoins = coins - amount;
+      const nextUsd = usd + gainedUSD;
+      setCoins(nextCoins);
+      setUsd(nextUsd);
+
+      if (user && !user.uid.startsWith('user_')) {
+        try {
+          const { saveUserProfile } = await import('../firebaseSync');
+          await saveUserProfile(user.uid, user, nextCoins, nextUsd, lifetimeMined);
+        } catch (err) {
+          console.error('Error syncing sold coins to Firestore:', err);
+        }
+      }
     }
   };
 
-  const sellAllCoins = () => {
+  const sellAllCoins = async () => {
     if (coins > 0) {
       const gainedUSD = coins * marketPrice;
-      setCoins(0);
-      setUsd(u => u + gainedUSD);
+      const nextCoins = 0;
+      const nextUsd = usd + gainedUSD;
+      setCoins(nextCoins);
+      setUsd(nextUsd);
+
+      if (user && !user.uid.startsWith('user_')) {
+        try {
+          const { saveUserProfile } = await import('../firebaseSync');
+          await saveUserProfile(user.uid, user, nextCoins, nextUsd, lifetimeMined);
+        } catch (err) {
+          console.error('Error syncing sold all coins to Firestore:', err);
+        }
+      }
     }
   };
 
@@ -1201,45 +1252,49 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentTotalEarnings >= usdAmount) {
       // Deduct funds immediately
       let remaining = usdAmount;
-      if (usd >= remaining) {
-        setUsd(u => u - remaining);
+      let nextUsd = usd;
+      let nextCoins = coins;
+      let nextBalances = { ...balances };
+
+      if (nextUsd >= remaining) {
+        nextUsd -= remaining;
         remaining = 0;
       } else {
-        remaining -= usd;
-        setUsd(0);
+        remaining -= nextUsd;
+        nextUsd = 0;
       }
 
       if (remaining > 0) {
-        const activeCryptoValue = coins * marketPrice;
+        const activeCryptoValue = nextCoins * marketPrice;
         if (activeCryptoValue >= remaining) {
           const coinsToDeduct = remaining / marketPrice;
-          setCoins(c => Math.max(0, c - coinsToDeduct));
+          nextCoins = Math.max(0, nextCoins - coinsToDeduct);
           remaining = 0;
         } else {
           remaining -= activeCryptoValue;
-          setCoins(0);
-          setBalances(prev => {
-            const updated = { ...prev };
-            updated[activeCrypto] = 0;
-            const cryptos = Object.keys(updated);
-            for (const crypto of cryptos) {
-              if (remaining <= 0) break;
-              const price = prices[crypto] || 0;
-              if (price <= 0) continue;
-              const val = updated[crypto] * price;
-              if (val >= remaining) {
-                updated[crypto] -= remaining / price;
-                remaining = 0;
-              } else {
-                remaining -= val;
-                updated[crypto] = 0;
-              }
+          nextCoins = 0;
+          nextBalances[activeCrypto] = 0;
+          const cryptos = Object.keys(nextBalances);
+          for (const crypto of cryptos) {
+            if (remaining <= 0) break;
+            const price = prices[crypto] || 0;
+            if (price <= 0) continue;
+            const val = nextBalances[crypto] * price;
+            if (val >= remaining) {
+              nextBalances[crypto] -= remaining / price;
+              remaining = 0;
+            } else {
+              remaining -= val;
+              nextBalances[crypto] = 0;
             }
-            localStorage.setItem('fast_miner_balances', JSON.stringify(updated));
-            return updated;
-          });
+          }
         }
       }
+
+      setUsd(nextUsd);
+      setCoins(nextCoins);
+      setBalances(nextBalances);
+      localStorage.setItem('fast_miner_balances', JSON.stringify(nextBalances));
 
       const hscEquiv = usdAmount / marketPrice;
       const characters = '0123456789abcdef';
@@ -1256,6 +1311,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         amountUSD: Number(usdAmount.toFixed(2)),
         address,
         status: 'pending',
+        verificationStatus: 'unverified',
         timestamp: Date.now(),
         txHash,
         fee: Number((usdAmount * 0.015).toFixed(4)), // 1.5% network fee
@@ -1267,17 +1323,32 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
 
       // Push into pending payouts
-      setPayouts(prev => [newTx, ...prev]);
+      setPayouts(prev => {
+        const updated = [newTx, ...prev];
+        localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+        return updated;
+      });
 
-      // Trigger automatic cascading status changes for satisfying confirmations
-      // Pendings goes to processing, then confirmed in short order
-      setTimeout(() => {
-        updateTxStatus(newTx.id, 'processing');
-      }, 4000);
+      if (user && !user.uid.startsWith('user_')) {
+        // Logged-in full-stack user: Sync to secure Firestore & require manual verification
+        import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile }) => {
+          try {
+            await savePayoutTransaction(user.uid, newTx);
+            await saveUserProfile(user.uid, user, nextCoins, nextUsd, lifetimeMined);
+          } catch (err) {
+            console.error('Error syncing payout to Firestore:', err);
+          }
+        });
+      } else {
+        // Offline / mock play: trigger automatic status changes
+        setTimeout(() => {
+          updateTxStatus(newTx.id, 'processing');
+        }, 4000);
 
-      setTimeout(() => {
-        updateTxStatus(newTx.id, 'confirmed');
-      }, 10000);
+        setTimeout(() => {
+          updateTxStatus(newTx.id, 'confirmed');
+        }, 10000);
+      }
 
       return { success: true, message: 'Payout requested successfully!', tx: newTx };
     } else {
@@ -1297,15 +1368,17 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     
     if (coinBalance >= cryptoAmount) {
+      let nextCoins = coins;
+      let nextBalances = { ...balances };
+
       // Deduct balance
       if (crypto === activeCrypto) {
-        setCoins(c => c - cryptoAmount);
+        nextCoins -= cryptoAmount;
+        setCoins(nextCoins);
       } else {
-        setBalances(prev => {
-          const updated = { ...prev, [crypto]: prev[crypto] - cryptoAmount };
-          localStorage.setItem('fast_miner_balances', JSON.stringify(updated));
-          return updated;
-        });
+        nextBalances[crypto] -= cryptoAmount;
+        setBalances(nextBalances);
+        localStorage.setItem('fast_miner_balances', JSON.stringify(nextBalances));
       }
       
       const cryptoPrice = prices[crypto] || 1.0;
@@ -1325,6 +1398,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         amountUSD: Number(usdValue.toFixed(2)),
         address,
         status: 'pending',
+        verificationStatus: 'unverified',
         timestamp: Date.now(),
         txHash,
         fee: Number(feeAmount.toFixed(crypto === 'DOGE' ? 2 : 5)),
@@ -1333,16 +1407,32 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         crypto: crypto
       };
       
-      setPayouts(prev => [newTx, ...prev]);
-      
-      // Cascade statuses
-      setTimeout(() => {
-        updateTxStatus(newTx.id, 'processing');
-      }, 4000);
-      
-      setTimeout(() => {
-        updateTxStatus(newTx.id, 'confirmed');
-      }, 10000);
+      setPayouts(prev => {
+        const updated = [newTx, ...prev];
+        localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+        return updated;
+      });
+
+      if (user && !user.uid.startsWith('user_')) {
+        // Logged-in full-stack user: Sync to secure Firestore & require manual verification
+        import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile }) => {
+          try {
+            await savePayoutTransaction(user.uid, newTx);
+            await saveUserProfile(user.uid, user, nextCoins, usd, lifetimeMined);
+          } catch (err) {
+            console.error('Error syncing crypto transfer to Firestore:', err);
+          }
+        });
+      } else {
+        // Cascade statuses for offline mock
+        setTimeout(() => {
+          updateTxStatus(newTx.id, 'processing');
+        }, 4000);
+        
+        setTimeout(() => {
+          updateTxStatus(newTx.id, 'confirmed');
+        }, 10000);
+      }
       
       setNotification(`External transfer submitted! ${cryptoAmount.toFixed(crypto === 'DOGE' ? 1 : 4)} ${crypto} successfully dispatched.`);
       
@@ -1354,13 +1444,75 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateTxStatus = (txId: string, nextStatus: 'pending' | 'processing' | 'confirmed') => {
     setPayouts(prev => {
-      return prev.map(t => {
+      const updated = prev.map(t => {
         if (t.id === txId) {
           return { ...t, status: nextStatus };
         }
         return t;
       });
+      localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+      return updated;
     });
+  };
+
+  const updateTxVerificationStatus = (
+    txId: string, 
+    nextVerificationStatus: 'unverified' | 'verifying' | 'verified',
+    nextStatus?: 'pending' | 'processing' | 'confirmed'
+  ) => {
+    setPayouts(prev => {
+      const updated = prev.map(t => {
+        if (t.id === txId) {
+          return { 
+            ...t, 
+            verificationStatus: nextVerificationStatus,
+            ...(nextStatus ? { status: nextStatus } : {})
+          };
+        }
+        return t;
+      });
+      localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const verifyPayout = async (txId: string): Promise<{ success: boolean; message: string }> => {
+    if (!user || user.uid.startsWith('user_')) {
+      return { success: false, message: 'OAuth verification required. Secure login must be established.' };
+    }
+
+    try {
+      const { updatePayoutVerification } = await import('../firebaseSync');
+
+      // 1. Set verifying
+      updateTxVerificationStatus(txId, 'verifying');
+      await updatePayoutVerification(user.uid, txId, 'verifying');
+
+      // 2. Perform mock delay (calculating decentralized zero-knowledge compliance proofs & AML validation)
+      await new Promise(resolve => setTimeout(resolve, 2500));
+
+      // 3. Mark verified & processing
+      updateTxVerificationStatus(txId, 'verified', 'processing');
+      await updatePayoutVerification(user.uid, txId, 'verified', 'processing');
+
+      // 4. Cascade to final confirmed state on successful block inclusion
+      setTimeout(async () => {
+        updateTxStatus(txId, 'confirmed');
+        if (user && !user.uid.startsWith('user_')) {
+          try {
+            await updatePayoutVerification(user.uid, txId, 'verified', 'confirmed');
+          } catch(err) {
+            console.error('Firestore confirmation sync failed:', err);
+          }
+        }
+      }, 5000);
+
+      return { success: true, message: 'AML & Cryptographic Compliance Proofs Verified. Ledger settlement approved!' };
+    } catch (err: any) {
+      console.error('Compliance gate verification error:', err);
+      updateTxVerificationStatus(txId, 'unverified');
+      return { success: false, message: 'AML Compliance Gate failed: ' + err.message };
+    }
   };
 
   // Full system restore
@@ -1429,6 +1581,57 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return false;
   };
 
+  // --- Initialize Firebase Authentication Listener ---
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    const loadAuth = async () => {
+      try {
+        const { initAuth } = await import('../firebase');
+        unsubscribe = initAuth(
+          (firebaseUser, token) => {
+            // Check if login state shifted
+            if (miningStateRef.current.user?.uid !== firebaseUser.uid) {
+              login(
+                'google', 
+                firebaseUser.email || firebaseUser.uid, 
+                firebaseUser.displayName || 'Google Member', 
+                firebaseUser.uid
+              );
+            }
+          },
+          () => {
+            if (miningStateRef.current.user?.provider === 'google') {
+              setUser(null);
+              localStorage.removeItem('fast_miner_user');
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Firebase Auth initialization error:', err);
+      }
+    };
+    loadAuth();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // --- Periodic background sync of accumulated balance state ---
+  useEffect(() => {
+    if (!user || user.uid.startsWith('user_')) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const { saveUserProfile } = await import('../firebaseSync');
+        await saveUserProfile(user.uid, user, miningStateRef.current.coins, miningStateRef.current.usd, miningStateRef.current.lifetimeMined);
+      } catch (err) {
+        console.error('Periodic stats save failed:', err);
+      }
+    }, 15000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
   const totalEarnings = usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
     const actualAmt = crypto === activeCrypto ? coins : amt;
     const price = prices[crypto] || 0;
@@ -1491,6 +1694,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       user,
       login,
       logout,
+      verifyPayout,
       
       // Emergency Actions
       emergencyShutdown,
