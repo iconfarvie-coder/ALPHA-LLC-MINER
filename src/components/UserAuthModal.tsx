@@ -22,30 +22,37 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({ isOpen, onClose })
 
   if (!isOpen) return null;
 
-  // Handles simulate google / apple flow
-  const handleSocialLogin = (provider: 'google' | 'apple') => {
+  // Handles google / apple flow
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
     setErrorText(null);
     setAnimatingStep(provider);
     
-    // Quick sleek simulated blockchain handshake
-    setTimeout(() => {
-      let identifier = '';
-      let name = '';
-      if (provider === 'google') {
-        const emails = ['alpha.miner@gmail.com', 'satoshis.disciple@gmail.com', 'hashing.god@gmail.com', 'cloud.node@gmail.com'];
-        identifier = emails[Math.floor(Math.random() * emails.length)];
-        const names = ['Alpha Miner', 'Satoshi Disciple', 'Hash Master', 'Cloud Operator'];
-        name = names[emails.indexOf(identifier)];
-      } else {
-        const appleEmails = ['privaterelay_94a8@privaterelay.apple.com', 'sub_atomic_hashing@icloud.com', 'genesis_block@icloud.com'];
-        identifier = appleEmails[Math.floor(Math.random() * appleEmails.length)];
-        name = 'Apple Club Member';
+    if (provider === 'google') {
+      try {
+        const { googleSignIn } = await import('../firebase');
+        const result = await googleSignIn();
+        if (result) {
+          login('google', result.user.email || result.user.uid, result.user.displayName || 'Google Member');
+        }
+      } catch (err: any) {
+        console.error('Login failed', err);
+        setErrorText('Failed to sync with Google: ' + err.message);
+      } finally {
+        setAnimatingStep(null);
+        if (!errorText) onClose();
       }
-      
-      login(provider, identifier, name);
-      setAnimatingStep(null);
-      onClose();
-    }, 1200);
+    } else {
+      // Apple is still simulated
+      setTimeout(() => {
+        const appleEmails = ['privaterelay_94a8@privaterelay.apple.com', 'sub_atomic_hashing@icloud.com', 'genesis_block@icloud.com'];
+        const identifier = appleEmails[Math.floor(Math.random() * appleEmails.length)];
+        const name = 'Apple Club Member';
+        
+        login(provider, identifier, name);
+        setAnimatingStep(null);
+        onClose();
+      }, 1200);
+    }
   };
 
   const handlePhoneSubmit = (e: React.FormEvent) => {

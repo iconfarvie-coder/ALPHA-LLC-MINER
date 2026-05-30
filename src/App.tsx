@@ -6,7 +6,8 @@ import { RigUpgrades } from './components/RigUpgrades';
 import { MarketChart } from './components/MarketChart';
 import { PayoutConsole } from './components/PayoutConsole';
 import { UserAuthModal } from './components/UserAuthModal';
-import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign, ShieldCheck } from 'lucide-react';
+import { GmailInbox } from './components/GmailInbox';
+import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign, ShieldCheck, Mail } from 'lucide-react';
 
 function AppContent() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -29,6 +30,7 @@ function AppContent() {
     { id: 'upgrades', label: 'Hardware Shop', icon: Server },
     { id: 'market', label: 'DEX Trade & News', icon: TrendingUp },
     { id: 'payouts', label: 'Easy Payouts', icon: Wallet },
+    { id: 'emails', label: 'Cloud Mail', icon: Mail },
   ] as const;
 
   return (
@@ -213,6 +215,7 @@ function AppContent() {
           {activeTab === 'upgrades' && <RigUpgrades />}
           {activeTab === 'market' && <MarketChart />}
           {activeTab === 'payouts' && <PayoutConsole />}
+          {activeTab === 'emails' && <GmailInbox />}
         </div>
 
       </main>

@@ -14,8 +14,8 @@ interface MiningContextType {
   news: MarketNews[];
   activeNews: MarketNews | null;
   marketHistory: PriceDataPoint[];
-  activeTab: 'mine' | 'upgrades' | 'market' | 'payouts';
-  setActiveTab: (tab: 'mine' | 'upgrades' | 'market' | 'payouts') => void;
+  activeTab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails';
+  setActiveTab: (tab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails') => void;
   mineClick: () => void;
   buyUpgrade: (id: string) => boolean;
   sellCoins: (amount: number) => void;
@@ -281,7 +281,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setNotification(`🎉 Connected securely via ${provider.toUpperCase()}! Cloud synchronization completed.`);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      const { logoutProvider } = await import('../firebase');
+      await logoutProvider();
+    } catch(e) {
+      console.error('Firebase Auth logout error', e);
+    }
     setUser(null);
     localStorage.removeItem('fast_miner_user');
     setNotification("Successfully signed out. Local device session active.");
@@ -293,7 +299,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   
   // --- Active Tab ---
-  const [activeTab, setActiveTab] = useState<'mine' | 'upgrades' | 'market' | 'payouts'>('mine');
+  const [activeTab, setActiveTab] = useState<'mine' | 'upgrades' | 'market' | 'payouts' | 'emails'>('mine');
 
   // --- Upgrades State ---
   const [upgrades, setUpgrades] = useState<MiningUpgrade[]>(() => {
