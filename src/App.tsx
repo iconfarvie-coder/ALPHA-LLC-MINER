@@ -12,6 +12,7 @@ import { GmailInbox } from './components/GmailInbox';
 import { BlockExplorer } from './components/BlockExplorer';
 import { SupportAndSettings } from './components/SupportAndSettings';
 import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign, ShieldCheck, Mail, Database, HelpCircle, Settings } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 function AppContent() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -455,6 +456,7 @@ export default function App() {
   return (
     <MiningProvider>
       <AppContent />
+      <Analytics />
     </MiningProvider>
   );
 }
