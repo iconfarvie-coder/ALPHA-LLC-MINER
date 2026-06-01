@@ -45,7 +45,14 @@ export const MiningDashboard: React.FC = () => {
     emergencyCooling,
   } = useMining();
 
-  const [logs, setLogs] = useState<string[]>([]);
+  // Dynamic temperature calculations for smooth color transitions (Green to Red style)
+  const ambientTempValue = 24;
+  const thermalCapValue = stats.thermalCap || 100;
+  const tempRange = Math.max(1, thermalCapValue - ambientTempValue);
+  const tempRatio = Math.max(0, Math.min(1, (stats.temperature - ambientTempValue) / tempRange));
+  const hue = Math.max(0, Math.min(120, 120 * (1 - tempRatio)));
+
+  const [logs, setLogs] = useState<{ id: string; text: string }[]>([]);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const particleIdRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -84,9 +91,9 @@ export const MiningDashboard: React.FC = () => {
   useEffect(() => {
     // Fill starting logs
     const initialLogs = [
-      `[${new Date().toLocaleTimeString()}] System loaded. Standing by for mining core...`,
-      `[${new Date().toLocaleTimeString()}] Target difficulty: 240.5 T hashes`,
-      `[${new Date().toLocaleTimeString()}] Default pool node ready. Latency: 18ms`,
+      { id: 'init-1', text: `[${new Date().toLocaleTimeString()}] System loaded. Standing by for mining core...` },
+      { id: 'init-2', text: `[${new Date().toLocaleTimeString()}] Target difficulty: 240.5 T hashes` },
+      { id: 'init-3', text: `[${new Date().toLocaleTimeString()}] Default pool node ready. Latency: 18ms` },
     ];
     setLogs(initialLogs);
   }, []);
@@ -108,19 +115,21 @@ export const MiningDashboard: React.FC = () => {
 
       const selected = randomLogs[Math.floor(Math.random() * randomLogs.length)];
       setLogs(curr => {
-        const next = [...curr, selected];
+        const next = [...curr, { id: `${Date.now()}-${Math.random()}`, text: selected }];
         if (next.length > 30) next.shift(); // keep last 30 logs
         return next;
       });
-
-      // Auto-scroll logs
-      if (logContainerRef.current) {
-        logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-      }
     }, 4000); // stable 4-second period is highly realistic and performant!
 
     return () => clearInterval(logTick);
   }, []);
+
+  // Secure scrolling helper when log updates
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   // Handle active mining click details (with particles)
   const handleActiveMine = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -617,10 +626,22 @@ export const MiningDashboard: React.FC = () => {
       <div className="lg:col-span-5 flex flex-col gap-6">
         
         {/* Core Temperature Gauge */}
-        <div id="temperature_governor" className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 backdrop-blur-md">
+        <div 
+          id="temperature_governor" 
+          className="border rounded-2xl p-6 backdrop-blur-md transition-all duration-500"
+          style={{
+            borderColor: `hsla(${hue}, 75%, 45%, 0.25)`,
+            boxShadow: `0 10px 30px -10px rgba(0, 0, 0, 0.7), 0 0 20px -3px hsla(${hue}, 75%, 45%, 0.15)`,
+            backgroundColor: `hsla(${hue}, 70%, 5%, 0.45)`,
+            transition: 'border-color 0.5s ease, box-shadow 0.5s ease, background-color 0.5s ease'
+          }}
+        >
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
-              <Flame className={`h-4.5 w-4.5 ${stats.temperature > 80 ? 'text-rose-450 animate-pulse' : 'text-amber-400'}`} />
+              <Flame 
+                className={`h-4.5 w-4.5 transition-colors duration-500 ${stats.temperature > 80 ? 'animate-pulse' : ''}`} 
+                style={{ color: `hsl(${hue}, 85%, 50%)` }} 
+              />
               <h3 className="text-sm font-semibold text-white/90">Thermo-Governor Telemetry</h3>
             </div>
             <span className="text-xs font-mono text-white/40 font-semibold">Cap: {stats.thermalCap}°C</span>
@@ -631,20 +652,19 @@ export const MiningDashboard: React.FC = () => {
             <div>
               <div className="flex justify-between text-xs text-white/55 mb-1">
                 <span>Core Temperature</span>
-                <span className={`font-bold ${stats.temperature > 80 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                <span className="font-bold transition-colors duration-500" style={{ color: `hsl(${hue}, 85%, 55%)` }}>
                   {stats.temperature.toFixed(1)}°C
                 </span>
               </div>
               <div className="h-3 bg-[#050505] rounded-full overflow-hidden p-0.5 border border-white/5">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    stats.temperature > 90
-                      ? 'bg-rose-600 animate-pulse'
-                      : stats.temperature > 75
-                      ? 'bg-amber-500'
-                      : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${Math.min(100, (stats.temperature / stats.thermalCap) * 100)}%` }}
+                  className={`h-full rounded-full transition-all duration-500 ${stats.temperature > 90 ? 'animate-pulse' : ''}`}
+                  style={{ 
+                    width: `${Math.min(100, (stats.temperature / stats.thermalCap) * 100)}%`,
+                    backgroundColor: `hsl(${hue}, 85%, 45%)`,
+                    boxShadow: `0 0 8px hsl(${hue}, 85%, 45%)`,
+                    transition: 'width 0.5s ease, background-color 0.5s ease, box-shadow 0.5s ease'
+                  }}
                 />
               </div>
             </div>
@@ -694,17 +714,25 @@ export const MiningDashboard: React.FC = () => {
 
           <div
             ref={logContainerRef}
-            className="flex-1 overflow-y-auto max-h-[190px] font-mono text-[10px] text-white/50 space-y-1.5 pr-2"
+            className="flex-1 overflow-y-auto max-h-[190px] font-mono text-[10px] text-white/50 space-y-1.5 pr-2 scroll-smooth"
           >
             {logs.length === 0 ? (
               <p className="text-white/30 italic">Core is standby. Click the reactor or purchase discrete graphic processors to start block solves.</p>
             ) : (
-              logs.map((log, index) => (
-                <div key={index} className="leading-relaxed hover:text-white transition-colors break-all">
-                  <span className="text-white/20">&gt; </span>
-                  {log}
-                </div>
-              ))
+              <AnimatePresence initial={false}>
+                {logs.map((log) => (
+                  <motion.div
+                    key={log.id}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ type: "spring", stiffness: 100, damping: 15 }}
+                    className="leading-relaxed hover:text-white transition-colors break-all"
+                  >
+                    <span className="text-white/20">&gt; </span>
+                    {log.text}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
           </div>
         </div>

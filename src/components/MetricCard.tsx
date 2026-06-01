@@ -75,7 +75,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           <p className="text-xs uppercase tracking-wider font-mono text-slate-400 font-medium mb-1">
             {title}
           </p>
-          <h3 className={`text-2xl font-bold font-mono tracking-tight ${style.text} ${glow ? style.glowClass : ''}`}>
+          <h3 className={`text-lg sm:text-xl md:text-2xl font-bold font-mono tracking-tight ${style.text} ${glow ? style.glowClass : ''}`}>
             {value}
           </h3>
           {subtext && (
