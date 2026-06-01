@@ -37,6 +37,10 @@ interface MiningContextType {
   requestCryptoTransfer: (crypto: string, address: string, cryptoAmount: number, holdForBatching?: boolean) => { success: boolean; message: string; tx?: PayoutTransaction };
   initiateAssetTransfer: (crypto: string, recipientAddress: string, amount: number, name?: string) => { success: boolean; message: string; tx?: PayoutTransaction };
   confirmAssetTransfer: (txId: string) => Promise<{ success: boolean; message: string }>;
+  activeMiners: Record<string, boolean>;
+  toggleMiner: (crypto: string) => void;
+  mineAllCoins: boolean;
+  setMineAllCoins: (val: boolean) => void;
 
   // One-tap Auto Mining Cluster Core & Gateway telemetry
   isClusterAutoMining: boolean;
@@ -62,9 +66,10 @@ interface MiningContextType {
 
   // Real-Fake Secure One-Tap Account Authentication
   user: UserProfile | null;
-  login: (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string, uid?: string, rememberMe?: boolean) => void;
+  login: (provider: 'google' | 'apple' | 'phone' | 'email', identifier: string, name?: string, uid?: string, rememberMe?: boolean) => void;
   logout: () => void;
   verifyPayout: (txId: string) => Promise<{ success: boolean; message: string }>;
+  transferToMT5: (amountUSD: number) => boolean;
 
   // Emergency actions
   emergencyShutdown: () => void;
@@ -102,6 +107,59 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeCrypto, setActiveCryptoState] = useState<string>(() => {
     return localStorage.getItem('fast_miner_active_crypto') || 'BTC';
   });
+
+  const [activeMiners, setActiveMiners] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('fast_miner_active_miners');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      HSC: true,
+      BTC: true,
+      ETH: true,
+      SOL: true,
+      DOGE: true,
+    };
+  });
+
+  const [mineAllCoins, setMineAllCoinsState] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_mine_all_coins') !== 'false';
+  });
+
+  const toggleMiner = (crypto: string) => {
+    setActiveMiners(prev => {
+      const updated = { ...prev, [crypto]: !prev[crypto] };
+      localStorage.setItem('fast_miner_active_miners', JSON.stringify(updated));
+      
+      const allTrue = Object.values(updated).every(v => v === true);
+      setMineAllCoinsState(allTrue);
+      localStorage.setItem('fast_miner_mine_all_coins', allTrue ? 'true' : 'false');
+      
+      const enabled = updated[crypto];
+      setNotification(enabled ? `🟢 ${crypto} mining core activated.` : `🔴 ${crypto} mining core deactivated.`);
+      return updated;
+    });
+  };
+
+  const setMineAllCoins = (val: boolean) => {
+    setMineAllCoinsState(val);
+    localStorage.setItem('fast_miner_mine_all_coins', val ? 'true' : 'false');
+    
+    setActiveMiners(prev => {
+      const updated = {
+        HSC: val,
+        BTC: val,
+        ETH: val,
+        SOL: val,
+        DOGE: val,
+      };
+      localStorage.setItem('fast_miner_active_miners', JSON.stringify(updated));
+      setNotification(val ? `🚀 All multi-crypto mining cores booted!` : `⚠️ All multi-crypto cores offline.`);
+      return updated;
+    });
+  };
 
   // --- One-tap Auto Mining Cluster Core ---
   const [isClusterAutoMining, setIsClusterAutoMiningState] = useState<boolean>(() => {
@@ -281,7 +339,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const autoLoginEnabled = localStorage.getItem('fast_miner_auto_login') !== 'false';
     if (!user && autoLoginEnabled) {
-      const lastMethod = localStorage.getItem('fast_miner_last_login_method') as 'google' | 'apple' | 'phone' | null;
+      const lastMethod = localStorage.getItem('fast_miner_last_login_method') as 'google' | 'apple' | 'phone' | 'email' | null;
       const lastEmail = localStorage.getItem('fast_miner_last_login_email');
       const lastPhone = localStorage.getItem('fast_miner_last_login_phone');
       
@@ -292,21 +350,22 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           login('apple', lastEmail);
         } else if (lastMethod === 'phone' && lastPhone) {
           login('phone', lastPhone);
+        } else if (lastMethod === 'email' && lastEmail) {
+          const cachedUserStr = localStorage.getItem('fast_miner_user');
+          let name = 'Account User';
+          if (cachedUserStr) {
+            try {
+              name = JSON.parse(cachedUserStr).name || name;
+            } catch (e) {}
+          }
+          login('email', lastEmail, name);
         }
-      } else {
-        // First-time visitor: Auto-provision a secure credentials identity node
-        let anonId = localStorage.getItem('fast_miner_anon_node_id');
-        if (!anonId) {
-          anonId = 'node_ux_' + Math.random().toString(36).substring(2, 11);
-          localStorage.setItem('fast_miner_anon_node_id', anonId);
-        }
-        login('google', `${anonId}@nodes.ledger.network`, `Consensus Validator ${anonId.split('_').pop()?.toUpperCase()}`);
       }
     }
   }, []);
 
   const login = async (
-    provider: 'google' | 'apple' | 'phone', 
+    provider: 'google' | 'apple' | 'phone' | 'email', 
     identifier: string, 
     name?: string, 
     uid?: string,
@@ -325,6 +384,12 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else if (provider === 'apple') {
       email = identifier;
       formattedName = formattedName || 'Apple Member';
+    } else if (provider === 'email') {
+      email = identifier;
+      if (!formattedName) {
+        const localPart = identifier.split('@')[0];
+        formattedName = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+      }
     } else {
       phone = identifier;
       formattedName = formattedName || 'User ' + identifier.slice(-4);
@@ -405,6 +470,17 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     sessionStorage.removeItem('fast_miner_user');
     localStorage.removeItem('fast_miner_remember_me');
     setNotification("Successfully signed out. Local device session active.");
+  };
+
+  const transferToMT5 = (amountUSD: number): boolean => {
+    if (usd >= amountUSD && amountUSD > 0) {
+      const nextUsd = Math.max(0, usd - amountUSD);
+      setUsd(nextUsd);
+      localStorage.setItem('fast_miner_usd', nextUsd.toString());
+      setNotification(`📈 Sync: Transferred $${amountUSD.toFixed(2)} USD to connected MetaTrader 5 live account.`);
+      return true;
+    }
+    return false;
   };
 
   const [lifetimeMined, setLifetimeMined] = useState<number>(() => {
@@ -785,7 +861,21 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [activeBoosters, setActiveBoosters] = useState<ActiveBooster[]>(() => {
     const saved = localStorage.getItem('fast_miner_active_boosters');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed: ActiveBooster[] = JSON.parse(saved);
+        const unique: ActiveBooster[] = [];
+        const seen = new Set<string>();
+        for (const b of parsed) {
+          if (b && b.id && !seen.has(b.id)) {
+            seen.add(b.id);
+            unique.push(b);
+          }
+        }
+        return unique;
+      } catch (e) {}
+    }
+    return [];
   });
 
   const [inventory, setInventory] = useState<BoosterInventory>(() => {
@@ -956,7 +1046,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       
       const newBooster: ActiveBooster = {
-        id: `booster_${Date.now()}`,
+        id: `booster_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         type: boosterType,
         name: boosterType === 'overclock' ? 'Overclock Serum' : boosterType === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray',
         duration: 60,
@@ -1019,6 +1109,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     user,
     isDynamicCoolingActive,
     stats,
+    activeMiners,
+    mineAllCoins,
   });
 
   // Keep the ref updated on every render
@@ -1036,8 +1128,10 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       user,
       isDynamicCoolingActive,
       stats,
+      activeMiners,
+      mineAllCoins,
     };
-  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats]);
+  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats, activeMiners, mineAllCoins]);
 
   // Auto-save fast-changing variables periodically (every 3 seconds) to prevent heavy main thread blocking
   useEffect(() => {
@@ -1206,7 +1300,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Fast mining is responsive with a 100ms interval
   useEffect(() => {
     const mineInterval = setInterval(() => {
-      const { upgrades: curUpgrades, prices: curPrices, activeCrypto: curCrypto } = miningStateRef.current;
+      const { upgrades: curUpgrades, prices: curPrices, activeCrypto: curCrypto, activeMiners: curActiveMiners } = miningStateRef.current;
       const { hashrate, powerDraw, heatGenerated, coolingPower, efficiency } = calculateRigMetrics();
 
       // 1. Temperature simulator logic
@@ -1255,52 +1349,95 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 3. Accumulate Passive cryptocurrency income!
       if (actualHashrate > 0) {
-        const hscEarningsPerSec = actualHashrate * 0.008;
-        // Scale earnings proportionally: base coin standard price ($142.50) divided by active crypto price
+        // Filter out which miners are currently active
+        const enabledMiners = Object.entries(curActiveMiners || {})
+          .filter(([_, enabled]) => enabled)
+          .map(([c]) => c);
+
+        if (enabledMiners.length > 0) {
+          // Split of hashrate equally among active miners
+          const splitHash = actualHashrate / enabledMiners.length;
+          const hscBasePrice = 142.50;
+          let activeCryptoEarnings = 0;
+          let totalAddedLifetime = 0;
+
+          // Helper object to store incremental additions to non-active miners
+          const balancesToAdd: Record<string, number> = {};
+
+          enabledMiners.forEach(coin => {
+            const coinPrice = curPrices[coin] || hscBasePrice;
+            const hscEarningsPerSec = splitHash * 0.008;
+            const scaledEarningsPerSec = (hscEarningsPerSec * hscBasePrice) / coinPrice;
+            const tickEarnings = scaledEarningsPerSec * 0.1; // 100ms tick
+
+            totalAddedLifetime += tickEarnings;
+
+            if (coin === curCrypto) {
+              activeCryptoEarnings = tickEarnings;
+            } else {
+              balancesToAdd[coin] = tickEarnings;
+            }
+          });
+
+          // Update active viewer coin
+          if (activeCryptoEarnings > 0) {
+            setCoins(c => c + activeCryptoEarnings);
+          }
+
+          // Update lifetime accumulator
+          if (totalAddedLifetime > 0) {
+            setLifetimeMined(lm => lm + totalAddedLifetime);
+          }
+
+          // Update any secondary active coins balances directly
+          if (Object.keys(balancesToAdd).length > 0) {
+            setBalances(prev => {
+              const next = { ...prev };
+              Object.entries(balancesToAdd).forEach(([coin, amt]) => {
+                next[coin] = (next[coin] || 0) + amt;
+              });
+              localStorage.setItem('fast_miner_balances', JSON.stringify(next));
+              return next;
+            });
+          }
+        }
+
+        // Rare block share drop: 0.015% chance per 100ms tick (~10% chance every minute of active auto-mining)
+        if (Math.random() < 0.00015) {
+          const rewardTypes: ('overclock' | 'cryo' | 'market')[] = ['overclock', 'cryo', 'market'];
+          const chosen = rewardTypes[Math.floor(Math.random() * rewardTypes.length)];
+          setInventory(inv => {
+            const nextInv = { ...inv, [chosen]: inv[chosen] + 1 };
+            localStorage.setItem('fast_miner_booster_inventory', JSON.stringify(nextInv));
+            return nextInv;
+          });
+          const itemLabel = chosen === 'overclock' ? 'Overclock Serum' : chosen === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray';
+          setNotification(`Gameplay Loot Drop! Your auto-mining rig found 1x free ${itemLabel} in a solved block!`);
+        }
+      }
+
+      // 4. Simulate Auto-Clicker booster
+      const autoclick = curUpgrades.find(b => b.id === 'boost_autoclick');
+      if (autoclick && autoclick.level > 0) {
+        // multiplier stores passive click assistance speed
+        const baseClickRevenue = 0.001; // starting cash flow
+        const manualBooster = curUpgrades.find(b => b.id === 'boost_manual');
+        const clickScaler = 1 + (manualBooster ? manualBooster.level * manualBooster.multiplier : 0);
+        
+        const clickRevenues = baseClickRevenue * clickScaler * autoclick.level * autoclick.multiplier * 0.1;
+        
         const hscBasePrice = 142.50;
         const currentActivePrice = curPrices[curCrypto] || hscBasePrice;
-        const scaledEarningsPerSec = (hscEarningsPerSec * hscBasePrice) / currentActivePrice;
-        const tickEarnings = scaledEarningsPerSec * 0.1; // 100ms tick
+        const scaledClickRevenues = (clickRevenues * hscBasePrice) / currentActivePrice;
         
-        setCoins(c => c + tickEarnings);
-        setLifetimeMined(lm => lm + tickEarnings);
- 
-         // Rare block share drop: 0.015% chance per 100ms tick (~10% chance every minute of active auto-mining)
-         if (Math.random() < 0.00015) {
-           const rewardTypes: ('overclock' | 'cryo' | 'market')[] = ['overclock', 'cryo', 'market'];
-           const chosen = rewardTypes[Math.floor(Math.random() * rewardTypes.length)];
-           setInventory(inv => {
-             const nextInv = { ...inv, [chosen]: inv[chosen] + 1 };
-             localStorage.setItem('fast_miner_booster_inventory', JSON.stringify(nextInv));
-             return nextInv;
-           });
-           const itemLabel = chosen === 'overclock' ? 'Overclock Serum' : chosen === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray';
-           setNotification(`Gameplay Loot Drop! Your auto-mining rig found 1x free ${itemLabel} in a solved block!`);
-         }
-       }
- 
-       // 4. Simulate Auto-Clicker booster
-       const autoclick = curUpgrades.find(b => b.id === 'boost_autoclick');
-       if (autoclick && autoclick.level > 0) {
-         // multiplier stores passive click assistance speed
-         const baseClickRevenue = 0.001; // starting cash flow
-         const manualBooster = curUpgrades.find(b => b.id === 'boost_manual');
-         const clickScaler = 1 + (manualBooster ? manualBooster.level * manualBooster.multiplier : 0);
-         
-         const clickRevenues = baseClickRevenue * clickScaler * autoclick.level * autoclick.multiplier * 0.1;
-         
-         const hscBasePrice = 142.50;
-         const currentActivePrice = curPrices[curCrypto] || hscBasePrice;
-         const scaledClickRevenues = (clickRevenues * hscBasePrice) / currentActivePrice;
-         
-         setCoins(c => c + scaledClickRevenues);
-         setLifetimeMined(lm => lm + scaledClickRevenues);
-       }
- 
-     }, 100);
- 
-     return () => clearInterval(mineInterval);
-   }, []);
+        setCoins(c => c + scaledClickRevenues);
+        setLifetimeMined(lm => lm + scaledClickRevenues);
+      }
+
+    }, 100);
+
+    return () => clearInterval(mineInterval);
+  }, []);
 
   // Simulates live blockchain transaction processing on the connected L1/2 gateways
   useEffect(() => {
@@ -2526,6 +2663,10 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       requestCryptoTransfer,
       initiateAssetTransfer,
       confirmAssetTransfer,
+      activeMiners,
+      toggleMiner,
+      mineAllCoins,
+      setMineAllCoins,
 
       // One-tap Auto Mining Cluster Core & Gateway telemetry
       isClusterAutoMining,
@@ -2554,6 +2695,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       login,
       logout,
       verifyPayout,
+      transferToMT5,
       
       // Emergency Actions
       emergencyShutdown,

@@ -96,7 +96,7 @@ export interface UserProfile {
   name: string;
   email?: string;
   phone?: string;
-  provider: 'google' | 'apple' | 'phone';
+  provider: 'google' | 'apple' | 'phone' | 'email';
   avatarUrl?: string;
   verified: boolean;
   createdAt: number;

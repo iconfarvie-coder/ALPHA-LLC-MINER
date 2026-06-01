@@ -8,6 +8,7 @@ import { RigUpgrades } from './components/RigUpgrades';
 import { MarketChart } from './components/MarketChart';
 import { PayoutConsole } from './components/PayoutConsole';
 import { UserAuthModal } from './components/UserAuthModal';
+import { LoginPage } from './components/LoginPage';
 import { GmailInbox } from './components/GmailInbox';
 import { BlockExplorer } from './components/BlockExplorer';
 import { SupportAndSettings } from './components/SupportAndSettings';
@@ -35,6 +36,7 @@ function AppContent() {
     const saved = localStorage.getItem('fast_miner_scale_factor');
     return saved ? parseFloat(saved) : 1.0;
   });
+
   const [compactLayout, setCompactLayout] = useState<boolean>(() => {
     const saved = localStorage.getItem('fast_miner_compact_layout');
     return saved === 'true';
@@ -132,6 +134,10 @@ function AppContent() {
     { id: 'support', label: 'Help & Prefs', icon: HelpCircle },
   ] as const;
 
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#f2f2f2] flex flex-col font-sans selection:bg-emerald-500/20 selection:text-emerald-400">
       
@@ -215,8 +221,8 @@ function AppContent() {
                   className="bg-gradient-to-tr from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-400 rounded-xl h-9 px-2.5 text-[11px] font-extrabold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/5 hover:shadow-emerald-500/10"
                 >
                   <ShieldCheck className="h-4 w-4 stroke-[2.5]" />
-                  <span className="hidden sm:inline">Sync Portal</span>
-                  <span className="sm:hidden">Sync</span>
+                  <span className="hidden sm:inline">Login/Signup</span>
+                  <span className="sm:hidden font-extrabold text-[10px]">Login</span>
                 </button>
               )}
             </div>

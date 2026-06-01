@@ -25,7 +25,10 @@ import {
   Cpu,
   Activity,
   Sliders,
-  Terminal
+  Terminal,
+  Mail,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -58,12 +61,19 @@ export const SupportAndSettings: React.FC = () => {
   // Sub-tabs in Support Section
   const [subTab, setSubTab] = useState<'support' | 'preferences' | 'docs' | 'reviews'>('support');
 
+  // Official Care Ticketing & email state
+  const [isComposeModalOpen, setIsComposeModalOpen] = useState(false);
+  const [ticketCategory, setTicketCategory] = useState<'payout' | 'thermal' | 'verify' | 'cooperation' | 'other'>('payout');
+  const [ticketSubject, setTicketSubject] = useState('');
+  const [ticketMessage, setTicketMessage] = useState('');
+  const [emailStatusMsg, setEmailStatusMsg] = useState('');
+
   // AI Chat Messages state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: "System Alpha Terminal initialized. I am your specialized AI Support Operator. Ask me anything about upgrading your GPU rigs, resolving pending payouts in the Mempool, or optimizing thermal ratios.",
+      content: "System Alpha Terminal initialized. I am your specialized AI Support Operator. Ask me anything about upgrading your GPU rigs, resolving pending payouts in the Mempool, or optimizing thermal ratios. For official direct account/compliance ticket reviews, you can also contact our direct company customer care via Management.alpha@icloud.com.",
       timestamp: Date.now()
     }
   ]);
@@ -448,24 +458,35 @@ export const SupportAndSettings: React.FC = () => {
                   </p>
                 </div>
                 {!liveAgent && (
-                  <button
-                    id="btn_connect_live_agent"
-                    onClick={connectLiveAgent}
-                    disabled={isConnectingLive}
-                    className="h-8.5 px-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold uppercase text-[9px] tracking-wider rounded-xl transition-all flex items-center gap-2 justify-center shrink-0 disabled:opacity-50 cursor-pointer self-start sm:self-center"
-                  >
-                    {isConnectingLive ? (
-                      <>
-                        <Loader className="h-3.5 w-3.5 animate-spin" />
-                        <span>Connecting Tunnel...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Headphones className="h-3.5 w-3.5" />
-                        <span>Connect to Live Agent</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 self-start sm:self-center">
+                    <button
+                      id="btn_connect_live_agent"
+                      onClick={connectLiveAgent}
+                      disabled={isConnectingLive}
+                      className="h-8.5 px-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold uppercase text-[9px] tracking-wider rounded-xl transition-all flex items-center gap-2 justify-center shrink-0 disabled:opacity-50 cursor-pointer text-left"
+                    >
+                      {isConnectingLive ? (
+                        <>
+                          <Loader className="h-3.5 w-3.5 animate-spin" />
+                          <span>Connecting Tunnel...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Headphones className="h-3.5 w-3.5" />
+                          <span>Connect to Live Agent</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      id="btn_open_customer_care_email"
+                      onClick={() => setIsComposeModalOpen(true)}
+                      className="h-8.5 px-3.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold uppercase text-[9px] tracking-wider rounded-xl transition-all flex items-center gap-2 justify-center shrink-0 cursor-pointer"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      <span>Company Customer Care</span>
+                    </button>
+                  </div>
                 )}
                 {liveAgent && (
                   <div className="flex items-center gap-2 bg-[#0d1c16] border border-emerald-500/20 py-1.5 px-3 rounded-xl">
@@ -1209,6 +1230,177 @@ export const SupportAndSettings: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Company Customer Care Ticket Compose Modal Overlay */}
+        <AnimatePresence>
+          {isComposeModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-[#070908]/96 backdrop-blur-md z-[60] p-6 flex flex-col justify-between overflow-y-auto"
+            >
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex justify-between items-start border-b border-white/10 pb-3">
+                  <div className="text-left">
+                    <span className="text-[9px] uppercase tracking-wider text-cyan-400 font-bold bg-cyan-400/10 border border-cyan-400/25 px-2.5 py-0.5 rounded-full select-none inline-block">
+                      Direct Central Dispatch
+                    </span>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 mt-2">
+                      <Mail className="h-4 w-4 text-cyan-400" />
+                      <span>Alpha Company Customer Care</span>
+                    </h3>
+                    <p className="text-[10px] text-white/40 mt-1">
+                      Direct secure channel to <strong className="text-cyan-400">Management.alpha@icloud.com</strong>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsComposeModalOpen(false);
+                      setTicketSubject('');
+                      setTicketMessage('');
+                      setEmailStatusMsg('');
+                    }}
+                    className="h-8 w-8 hover:bg-white/10 text-white/40 hover:text-white rounded-xl flex items-center justify-center transition-all cursor-pointer"
+                    title="Close form"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Body Form */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
+                  {/* Fields section */}
+                  <div className="space-y-3.5 text-left">
+                    <div className="space-y-1">
+                      <label className="text-[9.5px] uppercase font-bold text-white/45 tracking-wider">Inquiry Category</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'payout', label: 'Payout / Settlement' },
+                          { id: 'thermal', label: 'Thermal Override' },
+                          { id: 'verify', label: 'Compliance Sync' },
+                          { id: 'cooperation', label: 'Nodes Business' },
+                          { id: 'other', label: 'General System' }
+                        ].map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setTicketCategory(cat.id as any)}
+                            className={`px-2 py-1.5 border rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                              ticketCategory === cat.id
+                                ? 'bg-cyan-500/15 border-cyan-400 text-cyan-400'
+                                : 'bg-white/2 border-white/5 text-white/40 hover:bg-white/5 hover:text-white/80'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9.5px] uppercase font-bold text-white/45 tracking-wider">Subject</label>
+                      <input
+                        type="text"
+                        value={ticketSubject}
+                        onChange={(e) => setTicketSubject(e.target.value)}
+                        placeholder="Pending payout verification inquiry..."
+                        className="w-full bg-black/40 border border-white/10 hover:border-white/20 focus:border-cyan-400 rounded-xl h-10 px-3 text-xs outline-none text-white focus:ring-1 focus:ring-cyan-500/20 placeholder-white/20 font-sans"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9.5px] uppercase font-bold text-white/45 tracking-wider">Message</label>
+                      <textarea
+                        rows={4}
+                        value={ticketMessage}
+                        onChange={(e) => setTicketMessage(e.target.value)}
+                        placeholder="Draft your detailed compliance questions or technical request directly here..."
+                        className="w-full bg-black/40 border border-white/10 hover:border-white/20 focus:border-cyan-400 rounded-xl p-3 text-xs outline-none text-white focus:ring-1 focus:ring-cyan-500/20 placeholder-white/20 resize-none font-sans leading-relaxed text-left"
+                      />
+                    </div>
+                  </div>
+
+                  {/* System Diagnostics attachment visual preview */}
+                  <div className="space-y-3.5 text-left">
+                    <div className="bg-white/[0.015] border border-white/5 rounded-xl p-4 space-y-3 flex flex-col h-full h-auto">
+                      <h4 className="text-[9.5px] uppercase font-extrabold text-[#e0a050] flex items-center gap-1.5">
+                        <Terminal className="h-3.5 w-3.5 text-amber-500" />
+                        <span>Telemetry Manifest Auto-Attachment</span>
+                      </h4>
+                      <p className="text-[10px] text-white/40 leading-relaxed font-sans mt-0.5">
+                        To help directors resolve accounting and hardware bottlenecks immediately, real-time node statistics will package alongside this communication:
+                      </p>
+
+                      <div className="bg-black/60 border border-white/5 p-3 rounded-xl font-mono text-[9px] text-emerald-400 space-y-1 text-left leading-normal">
+                        <div>[SYSTEM DIAGNOSTIC CAPTURE]</div>
+                        <div>Timestamp: {new Date().toUTCString()}</div>
+                        <div>Node Operator: {user?.name || 'Local Master Node'}</div>
+                        <div>Profile Contact: {user?.email || 'N/A'}</div>
+                        <div>Hashrate Output: {stats.hashRate?.toFixed(2) || '0.00'} MH/s</div>
+                        <div>Core Ambient Heat: {stats.temperature?.toFixed(1) || '0.0'}°C</div>
+                        <div>Safety Throttle Check: {stats.throttled ? 'ACTIVE THROTTLING' : 'OK'}</div>
+                        <div>Relay Coin Target: {stats?.activeCrypto || 'BTC'}</div>
+                        <div>Power Level Draw: {stats.powerDraw || '0'}W</div>
+                        <div>Endorsed Wallet Bal: {usd?.toFixed(2) || '0.00'} USD</div>
+                      </div>
+
+                      <div className="text-[8px] text-white/35 font-sans leading-relaxed">
+                        *This secure diagnostic block is compiled locally and fed into your default email agent when clicking dispatch. Review or adjust freely before submitting.
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-white/5 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                <div className="text-left font-sans text-[10px] text-white/30">
+                  Secure peer connection points to <span className="text-cyan-400 font-mono">Management.alpha@icloud.com</span>
+                </div>
+                
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsComposeModalOpen(false);
+                      setTicketSubject('');
+                      setTicketMessage('');
+                      setEmailStatusMsg('');
+                    }}
+                    className="h-9 px-4 border border-white/10 hover:border-white/20 text-white/70 hover:text-white uppercase font-sans text-[10px] font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <a
+                    href={`mailto:Management.alpha@icloud.com?subject=${encodeURIComponent(
+                      `[ALPHA CARE] ${ticketSubject || `${ticketCategory.toUpperCase()} Support Inquiry`}`
+                    )}&body=${encodeURIComponent(
+                      `Hello Alpha Support,\n\nCategory: ${ticketCategory.toUpperCase()}\n\nInquiry Details:\n${ticketMessage || 'I am having an issue with my active miner node payouts and telemetry. Please review my status.'}\n\n=================================\nSYSTEM DIAGNOSTICS REPORT\n=================================\nTimestamp: ${new Date().toISOString()}\nOperator: ${user?.name || 'Unknown'}\nEmail: ${user?.email || 'Unknown'}\nHashrate: ${stats.hashRate?.toFixed(2)} MH/s\nTemperature: ${stats.temperature?.toFixed(1)}C\nStatus: ${stats.throttled ? 'THROTTLED' : 'STABLE'}\nWallet Coin Balance: ${usd?.toFixed(2)} USD\nPower Draw: ${stats.powerDraw}W\n=================================\n`
+                    )}`}
+                    onClick={() => {
+                      setEmailStatusMsg('Opening system email client...');
+                      setTimeout(() => {
+                        setIsComposeModalOpen(false);
+                        setEmailStatusMsg('');
+                        setTicketSubject('');
+                        setTicketMessage('');
+                      }, 2500);
+                    }}
+                    className="h-9 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 uppercase font-mono text-[10px] font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(6,182,212,0.15)] active:scale-95"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span>Open Email Client</span>
+                  </a>
                 </div>
               </div>
             </motion.div>

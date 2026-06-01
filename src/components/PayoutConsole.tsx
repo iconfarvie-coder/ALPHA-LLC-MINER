@@ -56,6 +56,10 @@ export const PayoutConsole: React.FC = () => {
   // Ledger filter type: 'all' | 'cash' | 'crypto'
   const [filterType, setFilterType] = useState<'all' | 'cash' | 'crypto'>('all');
 
+  // Analytics Chart States
+  const [analyticsViewType, setAnalyticsViewType] = useState<'cumulative' | 'individual'>('cumulative');
+  const [analyticsAssetFilter, setAnalyticsAssetFilter] = useState<'all' | 'cash' | 'crypto'>('all');
+
   // Hold in mempool for batch consolidation
   const [holdForBatching, setHoldForBatching] = useState<boolean>(false);
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
@@ -1977,6 +1981,319 @@ export const PayoutConsole: React.FC = () => {
                     <span>Executing atomic swap swap...</span>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* GRAND INCOME & PAYOUT ANALYTICS CORE */}
+      {(() => {
+        const confirmedTxs = payouts
+          .filter(tx => tx.status === 'confirmed')
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        // Filter based on analyticsAssetFilter
+        const filteredTxs = confirmedTxs.filter(tx => {
+          if (analyticsAssetFilter === 'all') return true;
+          return (tx.type || 'cash') === analyticsAssetFilter;
+        });
+
+        // 1. Total valuation withdrawn
+        const totalWithdrawnUSD = filteredTxs.reduce((sum, tx) => sum + tx.amountUSD, 0);
+
+        // 2. Average payout size
+        const averagePayoutUSD = filteredTxs.length > 0 ? (totalWithdrawnUSD / filteredTxs.length) : 0;
+
+        // 3. Gas network fee paid (with conversion if crypto)
+        const totalGasUSD = filteredTxs.reduce((sum, tx) => {
+          if (tx.type === 'crypto') {
+            const rate = prices[tx.crypto || 'HSC'] || 1;
+            return sum + (tx.fee * rate);
+          } else {
+            return sum + tx.fee;
+          }
+        }, 0);
+
+        // 4. Counts
+        const clearedCount = filteredTxs.length;
+
+        // Prepare chart data based on selected view mode (cumulative vs individual)
+        let cumulativeSumUSD = 0;
+        const chartData = filteredTxs.map((tx, idx) => {
+          const date = new Date(tx.timestamp);
+          cumulativeSumUSD += tx.amountUSD;
+          return {
+            index: idx + 1,
+            timestamp: tx.timestamp,
+            dateStr: `${date.getMonth() + 1}/${date.getDate()}`,
+            timeStr: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            amountUSD: tx.amountUSD,
+            cumulativeUSD: cumulativeSumUSD,
+            crypto: tx.crypto || 'USD',
+            displayVal: analyticsViewType === 'cumulative' ? cumulativeSumUSD : tx.amountUSD,
+            label: tx.isTransfer ? `P2P ${tx.crypto}` : (tx.type === 'cash' ? 'USD Cash Out' : `${tx.crypto} Dispatch`),
+            gateway: tx.gateway || 'Main Wallet'
+          };
+        });
+
+        // Calculate Asset distribution
+        const statsByType = filteredTxs.reduce((acc, tx) => {
+          const keyName = tx.type === 'cash' ? (tx.gateway === 'paypal' ? 'PayPal' : 'Bank Wire') : (tx.crypto || 'HSC');
+          acc[keyName] = (acc[keyName] || 0) + tx.amountUSD;
+          return acc;
+        }, {} as Record<string, number>);
+
+        const totalDistributionSumUSD = (Object.values(statsByType) as number[]).reduce((a: number, b: number) => a + b, 0) || 1;
+
+        const distributionList = (Object.entries(statsByType) as [string, number][])
+          .map(([key, value]) => ({
+            name: key,
+            amountUSD: value,
+            percentage: (value / totalDistributionSumUSD) * 100
+          }))
+          .sort((a, b) => b.amountUSD - a.amountUSD);
+
+        const getAssetColor = (name: string) => {
+          switch (name) {
+            case 'PayPal': return 'bg-sky-500 text-sky-400';
+            case 'Bank Wire': return 'bg-teal-500 text-teal-400';
+            case 'HSC': return 'bg-emerald-500 text-emerald-400';
+            case 'BTC': return 'bg-amber-500 text-amber-500';
+            case 'ETH': return 'bg-purple-500 text-purple-400';
+            case 'SOL': return 'bg-fuchsia-500 text-fuchsia-400';
+            case 'DOGE': return 'bg-yellow-500 text-yellow-500';
+            default: return 'bg-white/40 text-white/50';
+          }
+        };
+
+        return (
+          <div className="lg:col-span-12 bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 backdrop-blur-md mt-6 text-left">
+            {/* Header section with analytical controls */}
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-white/10 pb-5 mb-6">
+              <div>
+                <h3 className="text-sm font-semibold text-white/95 flex items-center gap-2">
+                  <Activity className="h-4.5 w-4.5 text-emerald-400 animate-pulse" />
+                  <span>Withdrawal & Income Trends Analytics</span>
+                </h3>
+                <p className="text-[10px] text-white/40 mt-1 max-w-xl font-mono leading-relaxed">
+                  Decentralized visual tracking of dynamic asset swaps, fiat cashouts, and real-time ledger settlement volume growth over time.
+                </p>
+              </div>
+
+              {/* Controls */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full xl:w-auto text-[10px]">
+                {/* Target Asset Class Filter */}
+                <div className="flex bg-[#050505] p-1 rounded-xl border border-white/5 gap-1 shrink-0">
+                  {(['all', 'cash', 'crypto'] as const).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setAnalyticsAssetFilter(type)}
+                      className={`py-1.5 px-3 rounded-lg font-bold transition-all capitalize cursor-pointer text-center font-mono ${
+                        analyticsAssetFilter === type
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm font-extrabold'
+                          : 'text-white/40 hover:text-white hover:bg-white/5 border border-transparent font-medium'
+                      }`}
+                    >
+                      {type === 'all' ? 'All Classes' : type === 'cash' ? 'Fiat Net' : 'Crypto Dispatches'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* View Mode Toggle */}
+                <div className="flex bg-[#050505] p-1 rounded-xl border border-white/5 gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setAnalyticsViewType('cumulative')}
+                    className={`py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer font-mono whitespace-nowrap ${
+                      analyticsViewType === 'cumulative'
+                        ? 'bg-emerald-500 text-slate-950 font-black'
+                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Cumulative Growth
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnalyticsViewType('individual')}
+                    className={`py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer font-mono whitespace-nowrap ${
+                      analyticsViewType === 'individual'
+                        ? 'bg-emerald-500 text-slate-950 font-black'
+                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Individual Spikes
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Metrics cards grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-[#050505] border border-white/5 rounded-xl p-4 space-y-1">
+                <span className="text-[9px] text-white/30 uppercase tracking-wider block font-bold leading-none">TOTAL OUTFLOW VOLUME</span>
+                <p className="text-lg font-black text-white leading-none font-mono">
+                  {formatVal(totalWithdrawnUSD)}
+                </p>
+                <span className="text-[8.5px] text-white/20 block font-medium font-sans">Gross validated asset settlements</span>
+              </div>
+
+              <div className="bg-[#050505] border border-white/5 rounded-xl p-4 space-y-1">
+                <span className="text-[9px] text-white/30 uppercase tracking-wider block font-bold leading-none">AVERAGE TRANSACTION VALUE</span>
+                <p className="text-lg font-black text-white leading-none font-mono">
+                  {formatVal(averagePayoutUSD)}
+                </p>
+                <span className="text-[8.5px] text-emerald-400 block font-medium font-sans">{clearedCount} active blockchain receipts</span>
+              </div>
+
+              <div className="bg-[#050505] border border-white/5 rounded-xl p-4 space-y-1">
+                <span className="text-[9px] text-white/30 uppercase tracking-wider block font-bold leading-none">TOTAL NETWORK GAS PAID</span>
+                <p className="text-lg font-black text-white leading-none font-mono text-red-400/90">
+                  {formatVal(totalGasUSD)}
+                </p>
+                <span className="text-[8.5px] text-white/20 block font-medium font-sans">Pooled network clearance utility</span>
+              </div>
+
+              <div className="bg-[#050505] border border-white/5 rounded-xl p-4 space-y-1 relative overflow-hidden">
+                <span className="text-[9px] text-white/30 uppercase tracking-wider block font-bold leading-none">LEDGER INTEGRITY STATUS</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                  <p className="text-lg font-black text-emerald-400 leading-none font-mono">
+                    99.98% HEALTH
+                  </p>
+                </div>
+                <span className="text-[8.5px] text-white/20 block font-medium font-sans">Real-time local validation active</span>
+              </div>
+            </div>
+
+            {/* Main Visualizer Area */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              {/* Left Column: Recharts Chart */}
+              <div className="lg:col-span-8 bg-[#050505] border border-white/5 rounded-xl p-4 relative flex flex-col justify-between min-h-[300px]">
+                <div className="flex justify-between items-center text-[10px] mb-4">
+                  <span className="text-white/40 uppercase tracking-widest font-extrabold flex items-center gap-1.5">
+                    <Coins className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>
+                      {analyticsViewType === 'cumulative' ? 'Cumulative Swapped Value Curve' : 'Individual Clearance Outflow Streams'}
+                    </span>
+                  </span>
+                  <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 animate-pulse">
+                    LIVE MAINNET INDEX
+                  </span>
+                </div>
+
+                {chartData.length === 0 ? (
+                  <div className="flex-1 border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center p-8 text-center bg-white/[0.01]">
+                    <Activity className="h-8 w-8 text-white/10 mb-2 stroke-[1.5]" />
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">No Clearance History Logs Found</span>
+                    <span className="text-[10px] text-white/30 max-w-sm mt-1 leading-relaxed">
+                      Assemble mining returns, select a clearance gateway, and dispatch a payout payout. Once blockchain confirmation is cleared, dynamic trendlines will populate.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="h-64 w-full text-[9px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="analyticsColorGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1c1c1c" vertical={false} />
+                        <XAxis
+                          dataKey="dateStr"
+                          stroke="#3c3c3c"
+                          tick={{ fill: '#888', fontSize: 9 }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="#3c3c3c"
+                          tick={{ fill: '#888', fontSize: 9 }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: '#09090b',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '12px',
+                            color: '#fff',
+                            fontSize: '10px',
+                            fontFamily: 'monospace'
+                          }}
+                          labelStyle={{ color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', marginBottom: '4px' }}
+                          formatter={(value: any, name: any, props: any) => {
+                            const payload = props.payload;
+                            return [
+                              <span className="text-emerald-400 font-extrabold font-mono">{formatVal(value)}</span>,
+                              <div className="flex flex-col gap-0.5 text-[9px] text-white/50 font-mono mt-1 select-none text-left">
+                                <div>Event Name: {payload.label}</div>
+                                <div>Channel: {payload.gateway}</div>
+                                <div>Timestamp: {payload.timeStr}</div>
+                              </div>
+                            ];
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="displayVal"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          fillOpacity={1}
+                          fill="url(#analyticsColorGrad)"
+                          dot={{ r: 3.5, fill: '#10b981', strokeWidth: 0 }}
+                          activeDot={{ r: 5, fill: '#22c55e', strokeWidth: 1.5, stroke: '#ffffff' }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Quota Distribution */}
+              <div className="lg:col-span-4 bg-[#050505] border border-white/5 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="text-[10px] text-white/30 uppercase tracking-widest font-black border-b border-white/10 pb-2.5 mb-3">
+                    Portfolio Asset Allocation
+                  </div>
+
+                  {distributionList.length === 0 ? (
+                    <div className="py-12 text-center text-white/20 text-[9.5px]">
+                      <span>No validated allocations registered.</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      {distributionList.map(item => {
+                        const colorCode = getAssetColor(item.name);
+                        return (
+                          <div key={item.name} className="space-y-1">
+                            <div className="flex justify-between text-[11px] font-bold">
+                              <span className="text-white/70">{item.name}</span>
+                              <span className="text-white font-mono">{formatVal(item.amountUSD)}</span>
+                            </div>
+                            <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden relative border border-white/5">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${colorCode.split(' ')[0]}`}
+                                style={{ width: `${item.percentage}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[8px] text-white/30 font-semibold font-mono">
+                              <span>Consolidated share quota</span>
+                              <span>{item.percentage.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[9px] text-white/25 leading-normal bg-white/[0.01] border border-white/5 rounded-lg p-2.5 mt-4">
+                  💡 <strong>Tip:</strong> Settle withdrawals of multiple currencies (like HSC and BTC) to expand comparative analysis vectors dynamically.
+                </div>
               </div>
             </div>
           </div>

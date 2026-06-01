@@ -21,6 +21,11 @@ export const MiningDashboard: React.FC = () => {
     activeCrypto,
     setActiveCrypto,
     prices,
+    balances,
+    activeMiners,
+    toggleMiner,
+    mineAllCoins,
+    setMineAllCoins,
 
     // One-tap Auto Mining Cluster Core & Gateway telemetry
     isClusterAutoMining,
@@ -479,32 +484,106 @@ export const MiningDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Cryptocurrency Selection Bar */}
-        <div className="w-full bg-[#050505]/65 border border-white/5 p-1 rounded-xl flex items-center justify-between gap-1 z-10 font-mono mt-4">
-          {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
-            const isActive = activeCrypto === c;
-            const coinMeta = {
-              HSC: { name: 'Hash', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-              BTC: { name: 'Bitcoin', color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20' },
-              ETH: { name: 'Ether', color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
-              SOL: { name: 'Solana', color: 'text-fuchsia-450', bg: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
-              DOGE: { name: 'Doge', color: 'text-yellow-500', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-            }[c];
-            return (
+        {/* Cryptocurrency Selectable Earnings Cards */}
+        <div className="w-full space-y-3 mt-4 z-10 font-mono">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white/[0.02] border border-white/5 p-3 rounded-2xl">
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-widest block">Select Coin Target & Live Earnings View</span>
+              <p className="text-[9.5px] text-white/40 leading-snug">Click any card to select active explorer view. Toggle individual switches to redirect cluster power.</p>
+            </div>
+            
+            {/* Mine All Coins Master Switch */}
+            <div className="flex items-center gap-2 border-l border-white/5 pl-0 sm:pl-3 shrink-0">
+              <span className="text-[10px] text-white/80 font-bold uppercase tracking-wider">MINE ALL COINS</span>
               <button
-                key={c}
-                onClick={() => setActiveCrypto(c)}
-                className={`flex-1 py-1.5 rounded-lg border text-[10px] font-bold transition-all text-center cursor-pointer ${
-                  isActive 
-                    ? `${coinMeta.bg} ${coinMeta.color} shadow-sm font-black scale-105 z-10` 
-                    : 'bg-transparent border-transparent text-white/40 hover:text-white/70'
+                type="button"
+                onClick={() => setMineAllCoins(!mineAllCoins)}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out font-sans outline-none ${
+                  mineAllCoins ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-white/10'
                 }`}
-                title={`Switch connection to mine ${coinMeta.name}`}
               >
-                {c}
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-[0.5px] ${
+                    mineAllCoins ? 'translate-x-5' : 'translate-x-[1px]'
+                  }`}
+                />
               </button>
-            );
-          })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 w-full pt-1">
+            {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
+              const isActive = activeCrypto === c;
+              const isMined = activeMiners[c] ?? false;
+              
+              const coinMeta = {
+                HSC: { name: 'Hash Coin', color: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/[0.02]', activeBg: 'bg-emerald-500/10 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]' },
+                BTC: { name: 'Bitcoin', color: 'text-amber-500', border: 'border-amber-500/20', bg: 'bg-amber-500/[0.02]', activeBg: 'bg-amber-500/10 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]' },
+                ETH: { name: 'Ethereum', color: 'text-violet-400', border: 'border-violet-500/20', bg: 'bg-violet-500/[0.02]', activeBg: 'bg-violet-500/10 border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.15)]' },
+                SOL: { name: 'Solana', color: 'text-fuchsia-400', border: 'border-fuchsia-500/20', bg: 'bg-fuchsia-500/[0.02]', activeBg: 'bg-fuchsia-500/10 border-fuchsia-500/40 shadow-[0_0_15px_rgba(232,121,249,0.15)]' },
+                DOGE: { name: 'Dogecoin', color: 'text-yellow-500', border: 'border-yellow-500/20', bg: 'bg-yellow-500/[0.02]', activeBg: 'bg-yellow-500/10 border-yellow-500/40 shadow-[0_0_15px_rgba(234,179,8,0.15)]' },
+              }[c];
+
+              const bVal = c === activeCrypto ? coins : (balances[c] ?? 0);
+              const pVal = prices[c] ?? 0;
+              const fiatVal = bVal * pVal;
+
+              return (
+                <button
+                  key={c}
+                  onClick={() => setActiveCrypto(c)}
+                  className={`p-3 rounded-2xl border text-left font-mono transition-all duration-300 transform cursor-pointer relative flex flex-col justify-between h-[105px] select-none ${
+                    isActive 
+                      ? `${coinMeta.activeBg} scale-[1.02] border-emerald-500/40 text-white z-20` 
+                      : `${coinMeta.bg} border-white/5 text-white/50 hover:border-white/20 hover:text-white/85 hover:bg-white/[0.01]`
+                  } ${!isMined ? 'opacity-65 hover:opacity-100' : ''}`}
+                  title={`Switch view to index ${coinMeta.name}`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-1">
+                      <span className={`text-xs font-black tracking-wider ${isActive ? coinMeta.color : 'text-white/80'}`}>{c}</span>
+                      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                    </div>
+
+                    {/* Checkbox / Slide Toggle for individual coin mining */}
+                    <span 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        toggleMiner(c); 
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider flex items-center gap-1 font-bold select-none transition-all ${
+                        isMined 
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                          : 'bg-[#ff3b30]/10 text-rose-400 border border-rose-500/25 opacity-70 hover:opacity-100'
+                      }`}
+                      title={`Toggle active mining for ${coinMeta.name}`}
+                    >
+                      <span className={`h-1 w-1 rounded-full ${isMined ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400 animate-ping'}`} />
+                      {isMined ? 'Mining' : 'Idle'}
+                    </span>
+                  </div>
+                  
+                  <div className="mt-1.5">
+                    <span className="text-[11px] font-extrabold text-white block truncate">
+                      {bVal.toFixed(c === 'DOGE' ? 2 : c === 'SOL' ? 4 : 5)}
+                    </span>
+                    <span className="text-[9px] text-[#22c55e] block font-medium leading-none mt-0.5 truncate">
+                      {formatVal(fiatVal)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[8px] text-white/40 truncate leading-none uppercase tracking-widest mt-1 font-bold">
+                    <span>{coinMeta.name}</span>
+                    {isMined && (
+                      <span className="text-[7.5px] text-[#22c55e] shrink-0 font-medium">
+                        {stats.hashRate > 0 && activeMiners ? `${(stats.hashRate / Object.values(activeMiners).filter(Boolean).length).toFixed(1)} MH/s` : '0 MH/s'}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Interactive Center Plate */}
