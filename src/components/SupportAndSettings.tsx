@@ -20,7 +20,12 @@ import {
   CheckCircle2, 
   AlertCircle,
   Headphones,
-  Laptop
+  Laptop,
+  Database,
+  Cpu,
+  Activity,
+  Sliders,
+  Terminal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -47,6 +52,7 @@ export const SupportAndSettings: React.FC = () => {
     formatVal,
     usd,
     stats,
+    realtimeStorageLogs,
   } = useMining();
 
   // Sub-tabs in Support Section
@@ -88,6 +94,44 @@ export const SupportAndSettings: React.FC = () => {
     const saved = localStorage.getItem('pref_node_speed');
     return saved ? parseInt(saved) : 100;
   });
+
+  // --- PERSISTENCE AND DATABASE CORES PREFERENCES (Request 1 & 4) ---
+  const [disableSimulation, setDisableSimulation] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_disable_simulation') === 'true';
+  });
+  const [autoLoginPref, setAutoLoginPref] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_auto_login') !== 'false';
+  });
+
+  // --- ADDITIONAL CUSTOM HARDWARE SETTING ADJUSTERS (Request 2) ---
+  const [miningTickInterval, setMiningTickInterval] = useState<number>(() => {
+    const saved = localStorage.getItem('pref_mining_tick_interval');
+    return saved ? parseInt(saved) : 100;
+  });
+  const [hashIntensityLimit, setHashIntensityLimit] = useState<number>(() => {
+    const saved = localStorage.getItem('pref_hash_intensity_limit');
+    return saved ? parseInt(saved) : 100;
+  });
+  const [maxTelemetryHeight, setMaxTelemetryHeight] = useState<number>(() => {
+    const saved = localStorage.getItem('pref_max_telemetry_height');
+    return saved ? parseInt(saved) : 25;
+  });
+  const [steamVaporCapacity, setSteamVaporCapacity] = useState<number>(() => {
+    const saved = localStorage.getItem('pref_steam_vapor_capacity');
+    return saved ? parseInt(saved) : 60;
+  });
+
+  const handleDisableSimulationToggle = () => {
+    const nextVal = !disableSimulation;
+    setDisableSimulation(nextVal);
+    localStorage.setItem('fast_miner_disable_simulation', nextVal ? 'true' : 'false');
+  };
+
+  const handleAutoLoginPrefToggle = () => {
+    const nextVal = !autoLoginPref;
+    setAutoLoginPref(nextVal);
+    localStorage.setItem('fast_miner_auto_login', nextVal ? 'true' : 'false');
+  };
 
   // App Sync with UI state from LocalStorage (Compact/AutoScale)
   const [compactPref, setCompactPref] = useState(() => {
@@ -751,6 +795,193 @@ export const SupportAndSettings: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* CONSENSUS PERSISTENCE & SIMULATOR DISABLER CARD (Request 1 & 4) */}
+                <div className="bg-[#050505] border border-white/5 rounded-xl p-4 space-y-4">
+                  <h4 className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                    <Database className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Consensus Core Sync Options</span>
+                  </h4>
+
+                  <div className="space-y-3.5">
+                    {/* Simulator Switch */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col text-left">
+                        <span className="text-[9.5px] text-white font-bold">Real-Time Database Storage Sync</span>
+                        <span className="text-[8px] text-white/30 mt-0.5 leading-normal">
+                          Disable simulated client tickers and pipe actual user states directly to the secure Firestore cloud repository.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDisableSimulationToggle}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          disableSimulation ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow transition duration-200 ease-in-out ${
+                          disableSimulation ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Auto Login Sync Switch */}
+                    <div className="flex items-start justify-between gap-3 pt-3 border-t border-white/5">
+                      <div className="flex flex-col text-left">
+                        <span className="text-[9.5px] text-white font-bold">Frictionless Open Auto-Login</span>
+                        <span className="text-[8px] text-white/30 mt-0.5 leading-normal">
+                          Allow auto logins to user profiles on page open so you don't have to re-enter credentials or manually click sync every visit.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAutoLoginPrefToggle}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          autoLoginPref ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow transition duration-200 ease-in-out ${
+                          autoLoginPref ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* MAINFRAME FINE-TUNING SLIDERS CARD (Request 2) */}
+                <div className="bg-[#050505] border border-white/5 rounded-xl p-4 space-y-4">
+                  <h4 className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                    <Sliders className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Mainframe Performance Tuning</span>
+                  </h4>
+
+                  <div className="space-y-4">
+                    {/* Slider 1: Core Tick Interval */}
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between items-center text-[9.5px]">
+                        <span className="text-white font-bold">Consensus Solver Tick rate</span>
+                        <span className="font-mono text-emerald-400 font-extrabold">{miningTickInterval}ms</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="100"
+                        max="1000"
+                        step="50"
+                        value={miningTickInterval}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setMiningTickInterval(val);
+                          localStorage.setItem('pref_mining_tick_interval', val.toString());
+                        }}
+                        className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg cursor-pointer text-left"
+                      />
+                      <span className="text-[7.5px] text-white/30 block">Configures system worker validation intervals. Lower means more immediate block solving.</span>
+                    </div>
+
+                    {/* Slider 2: Hash Intensity Capping */}
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between items-center text-[9.5px]">
+                        <span className="text-white font-bold">Hashrate Thread Intensity Limit</span>
+                        <span className="font-mono text-emerald-400 font-extrabold">{hashIntensityLimit}%</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="50"
+                        max="200"
+                        step="10"
+                        value={hashIntensityLimit}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setHashIntensityLimit(val);
+                          localStorage.setItem('pref_hash_intensity_limit', val.toString());
+                        }}
+                        className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg cursor-pointer text-left"
+                      />
+                      <span className="text-[7.5px] text-white/30 block">Controls thread allocation margins. Spikes physical worker results up to 200%.</span>
+                    </div>
+
+                    {/* Slider 3: Max rows memory */}
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between items-center text-[9.5px]">
+                        <span className="text-white font-bold">Explorer Cache Row Buffers</span>
+                        <span className="font-mono text-emerald-400 font-extrabold">{maxTelemetryHeight} blocks</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        value={maxTelemetryHeight}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setMaxTelemetryHeight(val);
+                          localStorage.setItem('pref_max_telemetry_height', val.toString());
+                        }}
+                        className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg cursor-pointer text-left"
+                      />
+                      <span className="text-[7.5px] text-white/30 block">Restricts memory limit for simulated blockchain block rows, saving CPU utilization.</span>
+                    </div>
+
+                    {/* Slider 4: Steam Vapor Capacity */}
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between items-center text-[9.5px]">
+                        <span className="text-white font-bold">Thermal Chamber Cooling Bias</span>
+                        <span className="font-mono text-emerald-400 font-extrabold">{steamVaporCapacity}%</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        value={steamVaporCapacity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setSteamVaporCapacity(val);
+                          localStorage.setItem('pref_steam_vapor_capacity', val.toString());
+                        }}
+                        className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg cursor-pointer text-left"
+                      />
+                      <span className="text-[7.5px] text-white/30 block">Adjusts silent background vapor exhaust fans to regulate extreme peak loads.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FULL WIDTH: LIVE REALTIME STORAGE LOG STREAM */}
+                <div className="md:col-span-2 bg-[#050505] border border-white/5 rounded-xl p-4 space-y-3.5">
+                  <h4 className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                    <Terminal className="h-3.5 w-3.5 animate-pulse text-emerald-400 animate-pulse" />
+                    <span>Live Real-Time Database Storage Log Stream</span>
+                  </h4>
+                  
+                  {disableSimulation ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-emerald-400/80 bg-emerald-500/5 border border-emerald-500/10 p-2.5 rounded-lg leading-relaxed text-left">
+                        ✨ Real-Time Database Sync is active and monitoring of the decentralized Firestore collections is in progress. Core client payload saves trigger state telemetry events below:
+                      </p>
+                      <div className="bg-black/80 border border-white/5 rounded-lg p-3 font-mono text-[9px] max-h-36 overflow-y-auto space-y-1.5 text-left">
+                        {realtimeStorageLogs.length === 0 ? (
+                          <span className="text-white/30 italic block">Awaiting subsequent state flush... (committed every 3 seconds)</span>
+                        ) : (
+                          realtimeStorageLogs.map((log, idx) => (
+                            <div key={idx} className="text-emerald-400 leading-normal border-l-2 border-emerald-500/50 pl-2">
+                              {log}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-white/10 bg-white/[0.01] p-5 rounded-xl text-center space-y-2.5">
+                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/40">
+                        <Database className="h-4 w-4" />
+                      </div>
+                      <div className="text-[11px] font-bold text-white/60 uppercase tracking-widest leading-none">Simulation Mode Enabled</div>
+                      <p className="text-[9.5px] text-white/35 max-w-sm mx-auto leading-relaxed">
+                        To log direct, real-time Firestore database queries, toggle the <strong className="text-emerald-400">"Real-Time Database Storage Sync"</strong> option above. This turns off fictional logs and activates persistent cloud logging.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
               </div>

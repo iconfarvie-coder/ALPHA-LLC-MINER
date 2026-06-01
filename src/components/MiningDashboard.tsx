@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMining } from '../context/MiningContext';
-import { Zap, AlertTriangle, Cpu, Snowflake, Play, Square, RefreshCw, Flame, Coins, Gift, Calendar, Check, PlayCircle, PlusCircle, Sparkles, Clock, X, ChevronRight, Volume2, Vibrate, VolumeX, TrendingUp } from 'lucide-react';
+import { Zap, AlertTriangle, Cpu, Snowflake, Play, Square, RefreshCw, Flame, Coins, Gift, Calendar, Check, PlayCircle, PlusCircle, Sparkles, Clock, X, ChevronRight, Volume2, Vibrate, VolumeX, TrendingUp, Download, Trash2, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ClickParticle {
@@ -43,6 +43,10 @@ export const MiningDashboard: React.FC = () => {
     dismissNotification,
     emergencyShutdown,
     emergencyCooling,
+    isDynamicCoolingActive,
+    setIsDynamicCoolingActive,
+    performanceHistory,
+    clearPerformanceHistory,
   } = useMining();
 
   // Dynamic temperature calculations for smooth color transitions (Green to Red style)
@@ -80,6 +84,52 @@ export const MiningDashboard: React.FC = () => {
         if (inventory[type] > 0) activateBoosterItem(type);
       });
     });
+  };
+
+  const handleExportCSV = () => {
+    if (!performanceHistory || performanceHistory.length === 0) {
+      return;
+    }
+
+    const headers = [
+      "ID",
+      "Timestamp (UTC)",
+      "Time (Local)",
+      "Hashrate (MH/s)",
+      "GPU Temperature (C)",
+      "Power Draw (Watts)",
+      "Efficiency (MH/W)",
+      "Active Cryptocurrency"
+    ];
+
+    const csvRows = [
+      headers.join(","),
+      ...performanceHistory.map(rec => {
+        const timeLocal = new Date(rec.timestamp).toLocaleString();
+        const timeUTC = new Date(rec.timestamp).toISOString();
+        return [
+          rec.id,
+          timeUTC,
+          `"${timeLocal}"`,
+          rec.hashRate.toFixed(2),
+          rec.temperature.toFixed(1),
+          Math.round(rec.powerDraw),
+          rec.efficiency.toFixed(3),
+          rec.activeCrypto
+        ].join(",");
+      })
+    ];
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `alpha_miner_telemetry_export_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const statsRef = useRef(stats);
@@ -186,21 +236,29 @@ export const MiningDashboard: React.FC = () => {
     <div className="space-y-6">
       
       {/* Dynamic Toast Alert banner system */}
-      {notification && (
-        <div className="bg-emerald-950/20 border border-emerald-500/30 p-4 rounded-xl flex items-center justify-between text-xs font-mono text-emerald-350 animate-pulse relative z-20 shadow-lg">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="h-4.5 w-4.5 text-emerald-400 shrink-0" />
-            <span>{notification}</span>
-          </div>
-          <button
-            onClick={dismissNotification}
-            className="text-white/40 hover:text-white p-1 cursor-pointer transition-colors shrink-0"
-            title="Dismiss notice"
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -80, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -30, scale: 0.95, transition: { duration: 0.15 } }}
+            transition={{ type: 'spring', damping: 22, stiffness: 180 }}
+            className="fixed top-6 right-6 z-[100] w-[calc(100vw-48px)] sm:w-auto sm:max-w-md bg-[#0a0f0d]/95 backdrop-blur-md border border-emerald-500/30 p-4 rounded-xl flex items-center justify-between text-xs font-mono text-emerald-300 shadow-[0_12px_40px_rgba(0,0,0,0.7),_0_0_20px_rgba(16,185,129,0.15)]"
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+            <div className="flex items-center gap-2.5 mr-4 select-none text-left">
+              <Sparkles className="h-4.5 w-4.5 text-emerald-400 shrink-0" />
+              <span>{notification}</span>
+            </div>
+            <button
+              onClick={dismissNotification}
+              className="text-white/40 hover:text-white p-1 cursor-pointer transition-colors shrink-0 self-start mt-0.5"
+              title="Dismiss notice"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Cinematic One-Tap Global Cluster Auto-Mining Ignition & Gateway Telemetry */}
       <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 backdrop-blur-md space-y-6 overflow-hidden relative">
@@ -692,11 +750,148 @@ export const MiningDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* Dynamic Cooling Toggle Sector */}
+            <div className="pt-3 border-t border-white/10 mt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col text-left">
+                  <span className="text-xs text-white/90 font-semibold flex items-center gap-1.5 select-none">
+                    <Snowflake className={`h-3.5 w-3.5 ${isDynamicCoolingActive ? 'animate-spin text-cyan-400' : 'text-white/40'}`} style={{ animationDuration: isDynamicCoolingActive ? `${Math.max(0.4, 3 - Math.min(2.5, (stats.temperature - 40) * 0.05))}s` : '0s' }} />
+                    Dynamic Cooling Profile
+                  </span>
+                  <span className="text-[10px] text-white/30">
+                    {isDynamicCoolingActive 
+                      ? "Telemetry-guided PID fan speed governor active" 
+                      : "Core running with manual/static fan levels"
+                    }
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => executeActionWithFeedback(() => setIsDynamicCoolingActive(!isDynamicCoolingActive))}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isDynamicCoolingActive ? 'bg-cyan-500' : 'bg-white/10'
+                  }`}
+                  id="toggle_dynamic_cooling"
+                  title="Toggle auto-cooling governance"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow ring-0 transition duration-200 ease-in-out ${
+                      isDynamicCoolingActive ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Dynamic Telemetry Status Panel */}
+              <div className="flex justify-between items-center bg-black/40 border border-white/5 rounded-xl p-2.5 font-sans">
+                <div className="flex flex-col text-left">
+                  <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold">Dynamic Fan Speed</span>
+                  <span className="text-xs font-mono font-bold text-white/90 mt-0.5">
+                    {isDynamicCoolingActive 
+                      ? `${Math.min(100, Math.round(20 + Math.max(0, stats.temperature - 45) * 1.6))}%`
+                      : '40% (Manual Mode)'
+                    }
+                  </span>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                  <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold">Thermal State</span>
+                  <span className={`text-[9.5px] font-bold mt-0.5 px-1.5 py-0.5 rounded leading-none ${
+                    stats.throttled 
+                      ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
+                      : stats.temperature > 80 
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse'
+                        : isDynamicCoolingActive 
+                          ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' 
+                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  }`}>
+                    {stats.throttled 
+                      ? 'THROTTLED' 
+                      : stats.temperature > 80 
+                        ? 'SURGING HEAT' 
+                        : isDynamicCoolingActive 
+                          ? 'STABILIZING' 
+                          : 'STANDBY'
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Dynamic temperature tips */}
             <div className="text-[10px] text-white/30 border-t border-white/10 pt-3">
               <span className="block font-semibold uppercase mb-1">Telemetry Tip:</span>
               <span>Adding bigger Core Graphics adds heat (+1.2°C to +45.0°C per GPU level). Overvolting multiplies this heat significantly. Keep cooling and fan profiles matched!</span>
             </div>
+          </div>
+        </div>
+
+        {/* CSV Telemetry Exporter Card */}
+        <div id="telemetry_csv_exporter" className="border border-white/10 bg-[#0f0f0f] rounded-2xl p-6 backdrop-blur-md space-y-4">
+          <div className="flex justify-between items-center border-b border-white/10 pb-3">
+            <h3 className="text-sm font-semibold text-white/90 flex items-center gap-2">
+              <Activity className="h-4.5 w-4.5 text-cyan-400 animate-pulse" />
+              <span>Telemetry Recorder Logs</span>
+            </h3>
+            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-0.5 rounded font-black select-none">
+              {performanceHistory.length} / 1000 Snapshots
+            </span>
+          </div>
+
+          <p className="text-[11.5px] text-white/45 leading-relaxed text-left">
+            Consensus node records telemetry (hash rate, temperature, power draw) periodically in micro-caches. Export your node metadata as a CSV file to trace device efficiency and configure dynamic profiles.
+          </p>
+
+          {performanceHistory.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2.5 bg-black/40 p-3 rounded-xl border border-white/5 font-mono text-[9px] text-left">
+              <div>
+                <span className="text-white/30 block mb-0.5 uppercase tracking-wider text-[8px]">Peak Hash</span>
+                <span className="text-emerald-400 font-extrabold text-xs">
+                  {Math.max(...performanceHistory.map(p => p.hashRate)).toFixed(1)} MH/s
+                </span>
+              </div>
+              <div>
+                <span className="text-white/30 block mb-0.5 uppercase tracking-wider text-[8px]">Peak Temp</span>
+                <span className="text-red-400 font-extrabold text-xs">
+                  {Math.max(...performanceHistory.map(p => p.temperature)).toFixed(1)}°C
+                </span>
+              </div>
+              <div>
+                <span className="text-white/30 block mb-0.5 uppercase tracking-wider text-[8px]">Avg Draw</span>
+                <span className="text-cyan-400 font-extrabold text-xs">
+                  {Math.round(performanceHistory.reduce((s, p) => s + p.powerDraw, 0) / performanceHistory.length)}W
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-dashed border-white/10 bg-white/[0.01] rounded-xl p-4 text-center">
+              <span className="text-[10px] text-white/30 italic block">No active logs captured yet. Solvers are warming up...</span>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={handleExportCSV}
+              disabled={performanceHistory.length === 0}
+              className={`flex-1 py-1.5 px-3 rounded-xl font-mono text-xs font-semibold flex items-center justify-center gap-2 transition-all duration-300 h-9 shrink-0 ${
+                performanceHistory.length > 0
+                  ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 cursor-pointer shadow-[0_4px_12px_rgba(6,182,212,0.15)] active:scale-95'
+                  : 'bg-white/5 text-white/25 cursor-not-allowed border border-white/2'
+              }`}
+              title="Download historical logs as CSV document"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Export CSV</span>
+            </button>
+
+            {performanceHistory.length > 0 && (
+              <button
+                onClick={clearPerformanceHistory}
+                className="w-9 h-9 shrink-0 rounded-xl border border-white/10 bg-white/5 hover:bg-red-500 hover:border-red-500 hover:text-slate-950 text-white/60 transition-all duration-300 cursor-pointer text-xs flex items-center justify-center"
+                title="Wipe cached telemetry registry"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

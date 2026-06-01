@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useMining } from '../context/MiningContext';
 import { PayoutTransaction } from '../types';
-import { Wallet, CheckCircle2, Loader2, ArrowUpRight, HelpCircle, AlertCircle, Clock, ExternalLink, ShieldCheck, X, Landmark, Send, Coins, Layers, Cpu, Activity, ChevronDown, ChevronUp, Copy, Check, Smartphone, Chrome } from 'lucide-react';
+import { Wallet, CheckCircle2, Loader2, ArrowUpRight, HelpCircle, AlertCircle, Clock, ExternalLink, ShieldCheck, X, Landmark, Send, Coins, Layers, Cpu, Activity, ChevronDown, ChevronUp, Copy, Check, Smartphone, Chrome, Users, ArrowLeftRight, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 export const PayoutConsole: React.FC = () => {
   const {
@@ -31,12 +32,26 @@ export const PayoutConsole: React.FC = () => {
     login,
     verifyPayout,
     batchPayouts,
+    initiateAssetTransfer,
+    confirmAssetTransfer,
   } = useMining();
 
   const [payoutInput, setPayoutInput] = useState<string>(payoutAddress);
   
-  // Tab controller: 'cash' (USD payout) vs 'crypto' (external direct dispatch)
-  const [activeFormTab, setActiveFormTab] = useState<'cash' | 'crypto'>('cash');
+  // Tab controller: 'cash' vs 'crypto' vs 'transfer'
+  const [activeFormTab, setActiveFormTab] = useState<'cash' | 'crypto' | 'transfer'>('cash');
+
+  // P2P Peer Transfer States
+  const [recipientAddress, setRecipientAddress] = useState<string>('');
+  const [transferAsset, setTransferAsset] = useState<string>('HSC');
+  const [p2pAmount, setP2pAmount] = useState<string>('');
+  const [p2pRecipientName, setP2pRecipientName] = useState<string>('');
+  
+  // Handshake states
+  const [isPerformingHandshake, setIsPerformingHandshake] = useState<boolean>(false);
+  const [handshakeTxId, setHandshakeTxId] = useState<string | null>(null);
+  const [activeHandshakeStep, setActiveHandshakeStep] = useState<number>(0);
+  const [handshakeLogs, setHandshakeLogs] = useState<string[]>([]);
 
   // Ledger filter type: 'all' | 'cash' | 'crypto'
   const [filterType, setFilterType] = useState<'all' | 'cash' | 'crypto'>('all');
@@ -218,6 +233,98 @@ export const PayoutConsole: React.FC = () => {
     }
   };
 
+  const handleP2pTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const amount = parseFloat(p2pAmount);
+    const balanceLimit = transferAsset === activeCrypto ? coins : (balances[transferAsset] ?? 0);
+
+    if (isNaN(amount) || amount <= 0) {
+      setErrorMsg('Please enter a valid transfer amount.');
+      return;
+    }
+
+    if (amount > balanceLimit) {
+      setErrorMsg(`Insufficient ${transferAsset} balance for peer transfer.`);
+      return;
+    }
+
+    const recipientAddr = recipientAddress.trim();
+    if (!recipientAddr || recipientAddr.length < 8) {
+      setErrorMsg('Please specify a valid recipient node address (minimum 8 length).');
+      return;
+    }
+
+    const res = initiateAssetTransfer(transferAsset, recipientAddr, amount, p2pRecipientName);
+    if (res.success) {
+      setSuccessMsg(`Asset transfer successfully broadcasted! Recipient can now confirm & claim.`);
+      setP2pAmount('');
+      setRecipientAddress('');
+      setP2pRecipientName('');
+      setTimeout(() => setSuccessMsg(null), 6000);
+    } else {
+      setErrorMsg(res.message);
+    }
+  };
+
+  const startHandshakeConfirmation = (txId: string) => {
+    setIsPerformingHandshake(true);
+    setHandshakeTxId(txId);
+    setActiveHandshakeStep(0);
+    setHandshakeLogs([
+      '[sys] Initializing cryptographic peer handshake protocol...',
+      '[sys] Binding to local Node ID: ' + (payoutAddress || '0x_self_active_node')
+    ]);
+    
+    // Step 1: SYNCHRONIZING P2P CHANNELS
+    setTimeout(() => {
+      setActiveHandshakeStep(1);
+      setHandshakeLogs(prev => [
+        ...prev, 
+        '[net] Connection established with validation bridge.', 
+        '[net] Handshake SYN packet verified by consensus peers.'
+      ]);
+      
+      // Step 2: VALIDATING RECIPIENT PRIVATE KEY SIGNATURES
+      setTimeout(() => {
+        setActiveHandshakeStep(2);
+        setHandshakeLogs(prev => [
+          ...prev, 
+          '[key] Requesting secure signature from active recipient coordinate...', 
+          '[key] Multi-sig approval parameters decrypted with SHA-256 block key.'
+        ]);
+        
+        // Step 3: SECURING CONSENSUS ENDORSEMENT
+        setTimeout(() => {
+          setActiveHandshakeStep(3);
+          setHandshakeLogs(prev => [
+            ...prev, 
+            '[consensus] Broadcasters validated proof state successfully. Network gas fee of 0.5% cleared.', 
+            '[consensus] Endorsed block height confirmed on-chain.'
+          ]);
+          
+          // Step 4: COMMITTING TO BLOCK LEDGER
+          setTimeout(() => {
+            setActiveHandshakeStep(4);
+            confirmAssetTransfer(txId).then((res) => {
+              if (res.success) {
+                setHandshakeLogs(prev => [
+                  ...prev, 
+                  '[storage] Ledger sync completed successfully!', 
+                  '[sys] Asset balance successfully updated! Channel closed.'
+                ]);
+              } else {
+                setHandshakeLogs(prev => [...prev, '[error] Failed sync: ' + res.message]);
+              }
+            });
+          }, 700);
+        }, 850);
+      }, 900);
+    }, 800);
+  };
+
   const getStatusStyle = (status: PayoutTransaction['status']) => {
     switch (status) {
       case 'confirmed':
@@ -259,14 +366,14 @@ export const PayoutConsole: React.FC = () => {
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[11px] sm:text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeFormTab === 'cash'
                 ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
                 : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
             }`}
           >
-            <Landmark className="h-4 w-4" />
-            <span>Cash Out ({selectedCurrency})</span>
+            <Landmark className="h-3.5 w-3.5" />
+            <span>Cash Out</span>
           </button>
           
           <button
@@ -275,14 +382,30 @@ export const PayoutConsole: React.FC = () => {
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[11px] sm:text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeFormTab === 'crypto'
                 ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
                 : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
             }`}
           >
-            <Send className="h-4 w-4" />
-            <span>Crypto External Dispatch</span>
+            <Send className="h-3.5 w-3.5" />
+            <span>External Dispatch</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveFormTab('transfer');
+              setErrorMsg(null);
+              setSuccessMsg(null);
+            }}
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[11px] sm:text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeFormTab === 'transfer'
+                ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
+            }`}
+          >
+            <Users className="h-3.5 w-3.5" />
+            <span>P2P Peer Transfers</span>
           </button>
         </div>
 
@@ -761,6 +884,249 @@ export const PayoutConsole: React.FC = () => {
           </div>
         )}
 
+        {activeFormTab === 'transfer' && (
+          <div className="space-y-6 animate-fade-in font-mono text-left">
+            
+            {/* INBOUND CLAIMS STATION */}
+            <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 backdrop-blur-md">
+              <h3 className="text-sm font-bold text-white/95 flex items-center gap-2 mb-2">
+                <Users className="h-4.5 w-4.5 text-emerald-400 shrink-0" />
+                <span>P2P Claim Handshake Terminal</span>
+              </h3>
+              <p className="text-[10px] text-white/40 mb-4 leading-relaxed">
+                Atomic peer-to-peer inbound corridors. Locate incoming digital asset assignments and execute full multi-signature handshakes to claim balances.
+              </p>
+
+              {(() => {
+                const pendingClaims = payouts.filter(t => 
+                  t.isTransfer && 
+                  (t.transferType === 'in' || t.address === '0x_self_active_node' || t.address === payoutAddress) && 
+                  t.status === 'pending'
+                );
+
+                if (pendingClaims.length === 0) {
+                  return (
+                    <div className="border border-dashed border-emerald-500/10 bg-emerald-500/[0.01] p-5 rounded-xl text-center space-y-2">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto text-emerald-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                      <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest leading-none">Console Listening</div>
+                      <p className="text-[9.5px] text-white/35 max-w-xs mx-auto">
+                        Ingress port is active. No pending inbound peer transfers detected right now.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {pendingClaims.map(claim => {
+                      const amount = claim.amountCoin || 0;
+                      const crypto = claim.crypto || 'HSC';
+                      const valueUSD = claim.amountUSD || 0.00;
+                      return (
+                        <div key={claim.id} className="border border-white/10 bg-[#050505] rounded-xl p-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                          <div className="space-y-1 text-left">
+                            <span className="text-[9px] px-2 py-0.5 bg-amber-500/10 text-amber-400 font-extrabold uppercase rounded border border-amber-500/20 tracking-wider">
+                              Inbound Transfer Awaiting Claim
+                            </span>
+                            <div className="text-sm font-extrabold text-white">
+                              {amount.toFixed(crypto === 'DOGE' ? 1 : 4)} {crypto}
+                              <span className="text-xs text-white/40 font-normal font-mono ml-1.5">≃ ${valueUSD.toFixed(2)}</span>
+                            </div>
+                            <div className="text-[9px] text-[#a0a0a0] font-mono break-all leading-normal">
+                              From: <span className="text-[#c0c0c0]" title={claim.senderAddress}>{claim.senderAddress ? (`${claim.senderAddress.substring(0,8)}...${claim.senderAddress.substring(claim.senderAddress.length - 8)}`) : 'Consensus Ingress'}</span>
+                            </div>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => startHandshakeConfirmation(claim.id)}
+                            className="w-full sm:w-auto px-4 h-9 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shrink-0"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5 text-slate-950" />
+                            <span>Confirm & Settle</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* PEER DISPATCH PORTAL */}
+            <div id="p2p_transfer_panel" className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 backdrop-blur-md space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-white/95 flex items-center gap-2 mb-1">
+                  <ArrowLeftRight className="h-4.5 w-4.5 text-emerald-400 shrink-0" />
+                  <span>Peer-to-Peer Asset Dispatch</span>
+                </h3>
+                <p className="text-[10px] text-white/40">Broadcasting transaction structures directly to peer node coordinates.</p>
+              </div>
+
+              <form onSubmit={handleP2pTransferSubmit} className="space-y-4">
+                {/* Asset Selector */}
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider block mb-1.5 font-semibold">
+                    Select Digital Asset
+                  </label>
+                  <div className="grid grid-cols-5 gap-1.5 bg-[#050505] p-1 rounded-xl border border-white/5">
+                    {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
+                      const isSelected = transferAsset === c;
+                      const cColors = {
+                        HSC: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
+                        BTC: 'border-amber-500/30 text-amber-500 bg-amber-500/5',
+                        ETH: 'border-violet-500/30 text-violet-400 bg-violet-500/5',
+                        SOL: 'border-fuchsia-500/30 text-[#e879f9] bg-fuchsia-500/5',
+                        DOGE: 'border-yellow-500/30 text-yellow-500 bg-yellow-500/5',
+                      }[c];
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setTransferAsset(c);
+                            setErrorMsg(null);
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center border cursor-pointer transition-all ${
+                            isSelected 
+                              ? `${cColors} border-opacity-100 font-extrabold scale-102` 
+                              : 'bg-transparent border-transparent text-white/40 hover:text-white/60'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Balance displays */}
+                <div className="p-3 bg-[#050505] rounded-xl border border-white/5 flex justify-between items-center text-[10px] leading-relaxed">
+                  <div>
+                    <span className="text-white/40 block font-semibold text-left">Available Allocation:</span>
+                    <span className="font-extrabold text-white text-[11px] block text-left">
+                      {(transferAsset === activeCrypto ? coins : (balances[transferAsset] ?? 0)).toFixed(transferAsset === 'DOGE' ? 2 : 5)} {transferAsset}
+                    </span>
+                  </div>
+                  <div className="text-right font-mono">
+                    <span className="text-white/40 block font-semibold leading-relaxed">Exchange Rate Estimation:</span>
+                    <span className="font-extrabold text-white/50 text-[10px] block leading-relaxed">
+                      ≃ ${prices[transferAsset]?.toLocaleString() ?? '1.00'} USD
+                    </span>
+                  </div>
+                </div>
+
+                {/* Recipient Coordinate and Favorites */}
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider block mb-1 font-semibold">
+                    Peer Node Address Coordinates
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={recipientAddress}
+                      onChange={(e) => setRecipientAddress(e.target.value)}
+                      placeholder="e.g. 0x882a9b3c4f5d6e7f8a9b..."
+                      className="bg-[#050505] border border-white/10 focus:border-emerald-400/40 text-[11px] text-slate-300 px-3 h-10 w-full rounded-xl outline-none font-mono"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[8px] text-white/30 h-6 flex items-center mr-1 uppercase font-bold tracking-wider">Speed-Dials:</span>
+                      {[
+                        { name: 'Echo-4 Node', addr: '0x882a9b3c4f5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f' },
+                        { name: 'Doge West Core', addr: '0xdoge_validator_peer_west_99' },
+                        { name: 'Arbitrum Pool', addr: '0x7739e8f12a3b04c89d2f349a8b7c6d5e4f3a2b1c' }
+                      ].map(preset => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => setRecipientAddress(preset.addr)}
+                          className="text-[9px] bg-white/5 hover:bg-white/10 border border-white/5 px-2 py-0.5 rounded-lg text-emerald-400/80 hover:text-emerald-300 cursor-pointer"
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom reference name */}
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider block mb-1 font-semibold">
+                    Recipient Reference ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={p2pRecipientName}
+                    onChange={(e) => setP2pRecipientName(e.target.value)}
+                    placeholder="e.g. Consortium Ledger North, Validator-9"
+                    className="bg-[#050505] border border-white/10 focus:border-emerald-400/40 text-[11px] text-slate-300 px-3 h-10 w-full rounded-xl outline-none font-mono"
+                  />
+                </div>
+
+                {/* Amount input */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] text-white/40 uppercase tracking-wider font-semibold animate-none">
+                      Payment Amount
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setP2pAmount((transferAsset === activeCrypto ? coins : (balances[transferAsset] ?? 0)).toString())}
+                      className="text-[10px] text-emerald-400 font-extrabold hover:text-emerald-300 transition-colors uppercase tracking-widest cursor-pointer"
+                    >
+                      Set Maximum Allocation
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={p2pAmount}
+                      onChange={(e) => setP2pAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="bg-[#050505] border border-white/10 focus:border-emerald-400/40 text-[12px] text-white font-extrabold font-mono px-3 h-11 w-full rounded-xl outline-none"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30 font-bold uppercase tracking-wider font-mono">
+                      {transferAsset}
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-[9px] text-white/30 mt-1.5 px-0.5 font-mono">
+                    <span>Consensus Fee: 0.5% (refunded if delayed)</span>
+                    {p2pAmount && !isNaN(parseFloat(p2pAmount)) && (
+                      <span>≃ {formatVal(parseFloat(p2pAmount) * (prices[transferAsset] || 1))} USD</span>
+                    )}
+                  </div>
+                </div>
+
+                {errorMsg && (
+                  <div className="p-3 bg-rose-950/20 border border-rose-500/20 text-rose-400 text-xs rounded-xl flex gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 text-emerald-350 text-xs rounded-xl flex gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!p2pAmount || isNaN(parseFloat(p2pAmount)) || parseFloat(p2pAmount) <= 0 || parseFloat(p2pAmount) > (transferAsset === activeCrypto ? coins : (balances[transferAsset] ?? 0))}
+                  className="w-full h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md flex items-center justify-center gap-1.5 font-mono"
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  <span>Transmit P2P Assets</span>
+                </button>
+              </form>
+            </div>
+
+          </div>
+        )}
+
       </div>
 
       {/* RIGHT: Confirmation Blockchain ledger */}
@@ -770,6 +1136,87 @@ export const PayoutConsole: React.FC = () => {
             <Clock className="h-4.5 w-4.5 text-emerald-400" />
             <span>Payout Ledger Status</span>
           </h3>
+
+          {/* Recharts Historical Timeline Chart */}
+          {(() => {
+            const confirmedTxs = payouts
+              .filter(tx => tx.status === 'confirmed')
+              .sort((a, b) => a.timestamp - b.timestamp);
+
+            const chartData = confirmedTxs.map(tx => {
+              const date = new Date(tx.timestamp);
+              return {
+                timestamp: tx.timestamp,
+                dateStr: `${date.getMonth() + 1}/${date.getDate()}`,
+                amountUSD: tx.amountUSD,
+                crypto: tx.crypto || 'Cash Out',
+                label: tx.isTransfer ? `P2P ${tx.crypto}` : (tx.type === 'cash' ? 'USD Cash Out' : `${tx.crypto} Dispatch`)
+              };
+            });
+
+            if (chartData.length === 0) return null;
+
+            return (
+              <div className="bg-[#050505] p-3 rounded-xl border border-white/5 mb-4 relative overflow-hidden">
+                <div className="flex justify-between items-center text-[10px] mb-2 px-1">
+                  <span className="text-white/40 uppercase tracking-widest font-black">Withdrawal Timeline ({chartData.length} records)</span>
+                  <span className="text-emerald-400 font-extrabold font-mono">Consensus verified</span>
+                </div>
+                
+                <div className="h-28 w-full text-[9px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorUSD" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <XAxis 
+                        dataKey="dateStr" 
+                        stroke="#444" 
+                        tick={{ fill: '#888', fontSize: 8 }} 
+                        axisLine={false} 
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        stroke="#444" 
+                        tick={{ fill: '#888', fontSize: 8 }} 
+                        axisLine={false} 
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: '#0a0a0f',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          fontFamily: 'monospace',
+                          fontSize: '10px'
+                        }}
+                        labelStyle={{ color: 'rgba(255,255,255,0.4)', fontWeight: 'bold' }}
+                        formatter={(value: any, name: any, props: any) => {
+                          const payload = props.payload;
+                          return [`$${value.toFixed(2)}`, `${payload.label}`];
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="amountUSD" 
+                        stroke="#10b981" 
+                        strokeWidth={1.5}
+                        fillOpacity={1} 
+                        fill="url(#colorUSD)" 
+                        dot={{ r: 2.5, fill: '#10b981', strokeWidth: 0 }}
+                        activeDot={{ r: 4 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            );
+          })()}
 
           {payouts.length > 0 && (
             <div className="flex bg-[#050505] p-1 rounded-xl border border-white/5 gap-1 mb-4 text-[10px] font-bold">
@@ -1407,6 +1854,134 @@ export const PayoutConsole: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* HANDSHAKE INTERACTIVE OVERLAY */}
+      {isPerformingHandshake && handshakeTxId && (() => {
+        const matchingTx = payouts.find(t => t.id === handshakeTxId);
+        if (!matchingTx) return null;
+        
+        return (
+          <div className="fixed inset-0 bg-black/98 backdrop-blur-xl flex items-center justify-center p-4 z-50 animate-fade-in font-mono">
+            <div className="bg-[#0b0c10] border border-[#1f2937]/50 rounded-3xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(16,185,129,0.15)] relative">
+              
+              {/* Spinning active ring background and header */}
+              <div className="flex flex-col items-center text-center mt-3 border-b border-white/5 pb-5">
+                <div className="relative mb-4 flex items-center justify-center">
+                  {/* Rotating pulse glow */}
+                  <div className={`absolute inset-0 rounded-full blur-xl transition-all duration-300 w-16 h-16 ${
+                    activeHandshakeStep === 4 ? 'bg-emerald-500/25' : 'bg-emerald-500/10'
+                  }`} />
+                  
+                  {/* Rotating dashed ring */}
+                  <div className={`absolute w-16 h-16 rounded-full border-2 border-dashed border-emerald-500/50 ${
+                    activeHandshakeStep < 4 ? 'animate-spin' : ''
+                  }`} style={{ animationDuration: '8s' }} />
+
+                  {/* Core Icon */}
+                  <div className={`p-4 rounded-full border relative z-10 ${
+                    activeHandshakeStep === 4 
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-400' 
+                      : 'bg-[#0f1715] border-emerald-500/30 text-emerald-500'
+                  }`}>
+                    {activeHandshakeStep === 4 ? (
+                      <CheckCircle2 className="h-8 w-8 animate-bounce" />
+                    ) : (
+                      <RefreshCw className="h-8 w-8 animate-spin" />
+                    )}
+                  </div>
+                </div>
+                
+                <h2 className="text-sm font-black uppercase text-white tracking-widest">
+                  {activeHandshakeStep === 4 ? 'Handshake Finalized' : 'Decentralized Handshake Transit'}
+                </h2>
+                <span className="text-[9px] text-[#42d19b]/80 uppercase font-mono tracking-widest mt-1 block">
+                  Node-to-Node Secure Asset Dispatch
+                </span>
+              </div>
+
+              {/* Steps Progress Indicator */}
+              <div className="grid grid-cols-4 gap-2.5 py-4.5">
+                {[
+                  { name: 'Bridge', desc: 'Secure SYN' },
+                  { name: 'Auth', desc: 'Private Key' },
+                  { name: 'Endorse', desc: 'Consensus' },
+                  { name: 'Commit', desc: 'Settle Ledger' }
+                ].map((step, idx) => {
+                  const state = activeHandshakeStep > idx ? 'completed' : activeHandshakeStep === idx ? 'active' : 'pending';
+                  return (
+                    <div key={idx} className="text-center space-y-1">
+                      <div className="relative h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div className={`absolute inset-y-0 left-0 rounded-full transition-all duration-300 ${
+                          state === 'completed'
+                            ? 'bg-emerald-500 w-full' 
+                            : state === 'active' 
+                            ? 'bg-amber-400 w-2/3 animate-pulse' 
+                            : 'bg-transparent w-0'
+                        }`} />
+                      </div>
+                      <div className="space-y-0.5 mt-1">
+                        <span className={`text-[8px] font-black uppercase block tracking-wider ${
+                          state === 'completed' ? 'text-emerald-400' : state === 'active' ? 'text-amber-400' : 'text-white/20'
+                        }`}>
+                          {step.name}
+                        </span>
+                        <span className="text-[7px] text-white/30 block leading-none">{step.desc}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Real-time cryptolog window */}
+              <div className="bg-[#040508] border border-white/5 rounded-2xl p-4 font-mono space-y-2 text-[10px] text-left">
+                <span className="text-[8px] text-white/30 uppercase tracking-widest block font-bold border-b border-white/5 pb-1">
+                  Active Connection Telemetry
+                </span>
+                <div className="max-h-36 overflow-y-auto space-y-1.5 scrollbar-thin text-[9.5px]">
+                  {handshakeLogs.map((log, lidx) => {
+                    const isErr = log.includes('[error]');
+                    const isSys = log.includes('[sys]');
+                    const isNet = log.includes('[net]');
+                    const isKey = log.includes('[key]');
+                    const isStorage = log.includes('[storage]');
+                    let color = 'text-white/60';
+                    if (isErr) color = 'text-rose-400 font-bold';
+                    else if (isSys) color = 'text-indigo-400';
+                    else if (isNet) color = 'text-cyan-400';
+                    else if (isKey) color = 'text-[#ebad40]';
+                    else if (isStorage) color = 'text-emerald-400 font-bold';
+                    return (
+                      <div key={lidx} className={`${color} leading-normal`}>
+                        {log}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Close/Acknowledge button */}
+              <div className="pt-4 flex gap-2">
+                {activeHandshakeStep === 4 ? (
+                  <button
+                    onClick={() => {
+                      setIsPerformingHandshake(false);
+                      setHandshakeTxId(null);
+                    }}
+                    className="flex-1 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                  >
+                    <span>Finalize & Exit</span>
+                  </button>
+                ) : (
+                  <div className="flex-1 flex gap-2 items-center justify-center px-4 py-2 border border-white/5 bg-white/[0.02] rounded-xl text-white/30 text-[9px] uppercase tracking-wider font-bold">
+                    <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
+                    <span>Executing atomic swap swap...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

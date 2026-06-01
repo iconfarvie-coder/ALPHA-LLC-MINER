@@ -20,18 +20,26 @@ export interface PayoutTransaction {
   id: string;
   amountCoin: number;
   amountUSD: number;
-  address: string;
+  address: string; // Recipient wallet address
   status: 'pending' | 'processing' | 'confirmed';
   verificationStatus?: 'unverified' | 'verifying' | 'verified';
   timestamp: number;
   txHash: string;
   fee: number;
   blockNumber: number;
-  type?: 'cash' | 'crypto';
+  type?: 'cash' | 'crypto' | 'transfer';
   crypto?: string;
   gateway?: 'paypal' | 'bank' | 'wallet';
   gatewayDetails?: string;
   holdForBatching?: boolean;
+  
+  // Peer Transfer Extensions
+  isTransfer?: boolean;
+  transferType?: 'in' | 'out';
+  senderAddress?: string;
+  recipientName?: string;
+  recipientConfirmed?: boolean;
+  recipientConfirmedAt?: number;
 }
 
 export interface PriceDataPoint {
@@ -114,6 +122,16 @@ export interface UserTransaction {
   timestamp: number;
   status: 'PENDING' | 'CONFIRMED' | 'VERIFIED';
   blockchainHash: string;
+}
+
+export interface PerformanceRecord {
+  id: string;
+  timestamp: number; // unix timestamp in ms
+  hashRate: number;  // in MH/s
+  temperature: number; // in deg C
+  powerDraw: number; // in Watts
+  efficiency: number; // MH/kW-h or MH/J
+  activeCrypto: string; // e.g. BTC, ETH, DOGE, HSC, SOL
 }
 
 

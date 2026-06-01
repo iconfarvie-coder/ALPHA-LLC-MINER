@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile, SimulatedBlock, UserTransaction } from '../types';
+import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile, SimulatedBlock, UserTransaction, PerformanceRecord } from '../types';
 import { INITIAL_UPGRADES, NEWS_TEMPLATES } from '../data';
 
 interface MiningContextType {
@@ -35,6 +35,8 @@ interface MiningContextType {
   balances: Record<string, number>;
   prices: Record<string, number>;
   requestCryptoTransfer: (crypto: string, address: string, cryptoAmount: number, holdForBatching?: boolean) => { success: boolean; message: string; tx?: PayoutTransaction };
+  initiateAssetTransfer: (crypto: string, recipientAddress: string, amount: number, name?: string) => { success: boolean; message: string; tx?: PayoutTransaction };
+  confirmAssetTransfer: (txId: string) => Promise<{ success: boolean; message: string }>;
 
   // One-tap Auto Mining Cluster Core & Gateway telemetry
   isClusterAutoMining: boolean;
@@ -71,6 +73,18 @@ interface MiningContextType {
   // Manual & Auto Action Transaction Registry
   userTransactions: UserTransaction[];
   logUserTransaction: (type: UserTransaction['type'], title: string, amount: string, recipient: string, status?: UserTransaction['status']) => UserTransaction;
+
+  // Real-time Storage & Telemetry logging
+  realtimeStorageLogs: string[];
+  setRealtimeStorageLogs: React.Dispatch<React.SetStateAction<string[]>>;
+
+  // Dynamic Cooling Profile
+  isDynamicCoolingActive: boolean;
+  setIsDynamicCoolingActive: (val: boolean) => void;
+
+  // Performance Stats History Export
+  performanceHistory: PerformanceRecord[];
+  clearPerformanceHistory: () => void;
 }
 
 const MiningContext = createContext<MiningContextType | undefined>(undefined);
@@ -98,6 +112,17 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsClusterAutoMiningState(val);
     localStorage.setItem('fast_miner_cluster_auto', val ? 'true' : 'false');
     setNotification(val ? '⚡ Cloud Integration Established! All mining computing machines are synced and auto-mining at maximum efficiency' : '⚠️ Cluster Standby. Auto-mining machines decoupled from central clock.');
+  };
+
+  // --- Dynamic Cooling Profile ---
+  const [isDynamicCoolingActive, setIsDynamicCoolingActiveState] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_dynamic_cooling_active') === 'true';
+  });
+
+  const setIsDynamicCoolingActive = (val: boolean) => {
+    setIsDynamicCoolingActiveState(val);
+    localStorage.setItem('fast_miner_dynamic_cooling_active', val ? 'true' : 'false');
+    setNotification(val ? '❄️ Dynamic Cooling Profile Activated! Core fan speeds will now auto-adjust based on real-time temperature telemetry.' : '⚠️ Cooling profile reset to manual mode.');
   };
 
   // --- Multi-Currency Display Settings ---
@@ -239,6 +264,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? parseFloat(saved) : 0;
   });
 
+  const [realtimeStorageLogs, setRealtimeStorageLogs] = useState<string[]>([]);
+
   // --- Real-Fake Secure One-Tap Account Authentication ---
   const [user, setUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem('fast_miner_user') || sessionStorage.getItem('fast_miner_user');
@@ -249,6 +276,34 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     return null;
   });
+
+  // Automated background auto-login on first page load
+  useEffect(() => {
+    const autoLoginEnabled = localStorage.getItem('fast_miner_auto_login') !== 'false';
+    if (!user && autoLoginEnabled) {
+      const lastMethod = localStorage.getItem('fast_miner_last_login_method') as 'google' | 'apple' | 'phone' | null;
+      const lastEmail = localStorage.getItem('fast_miner_last_login_email');
+      const lastPhone = localStorage.getItem('fast_miner_last_login_phone');
+      
+      if (lastMethod) {
+        if (lastMethod === 'google' && lastEmail) {
+          login('google', lastEmail);
+        } else if (lastMethod === 'apple' && lastEmail) {
+          login('apple', lastEmail);
+        } else if (lastMethod === 'phone' && lastPhone) {
+          login('phone', lastPhone);
+        }
+      } else {
+        // First-time visitor: Auto-provision a secure credentials identity node
+        let anonId = localStorage.getItem('fast_miner_anon_node_id');
+        if (!anonId) {
+          anonId = 'node_ux_' + Math.random().toString(36).substring(2, 11);
+          localStorage.setItem('fast_miner_anon_node_id', anonId);
+        }
+        login('google', `${anonId}@nodes.ledger.network`, `Consensus Validator ${anonId.split('_').pop()?.toUpperCase()}`);
+      }
+    }
+  }, []);
 
   const login = async (
     provider: 'google' | 'apple' | 'phone', 
@@ -517,7 +572,113 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [payouts, setPayouts] = useState<PayoutTransaction[]>(() => {
     const saved = localStorage.getItem('fast_miner_payouts');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    
+    // Seed initial mock transactions if empty so recipient claim is immediately testable
+    const now = Date.now();
+    const seeded: PayoutTransaction[] = [
+      {
+        id: 'tx_transfer_in_1',
+        amountCoin: 15.50,
+        amountUSD: 2208.75,
+        address: '0x_self_active_node',
+        status: 'pending',
+        verificationStatus: 'unverified',
+        timestamp: now - 3600000 * 4,
+        txHash: '0x9d4a8f9e1c4b7a3d2e5f8b9a0c1d2e3f4a5b6c7d',
+        fee: 0.08,
+        blockNumber: 6420114,
+        type: 'transfer',
+        crypto: 'HSC',
+        isTransfer: true,
+        transferType: 'in',
+        senderAddress: '0x882a9b3c4f5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f',
+        recipientName: 'My Cloud Miner Core',
+        recipientConfirmed: false
+      },
+      {
+        id: 'tx_transfer_in_2',
+        amountCoin: 120.00,
+        amountUSD: 45.60,
+        address: '0x_self_active_node',
+        status: 'pending',
+        verificationStatus: 'unverified',
+        timestamp: now - 3600000 * 24,
+        txHash: '0xa41c9b3d8f8a9b2c3d4e5f6a1b2c3d4e5f6a7b8c',
+        fee: 1.8,
+        blockNumber: 6418903,
+        type: 'transfer',
+        crypto: 'DOGE',
+        isTransfer: true,
+        transferType: 'in',
+        senderAddress: '0xdoge_validator_peer_west_99',
+        recipientName: 'My Cloud Miner Core',
+        recipientConfirmed: false
+      },
+      {
+        id: 'tx_hist_1',
+        amountCoin: 45.00,
+        amountUSD: 45.00,
+        address: 'paypal_iconfarvie@gmail.com',
+        status: 'confirmed',
+        verificationStatus: 'verified',
+        timestamp: now - 3600000 * 180, // ~7.5 days ago
+        txHash: '0x45a901f4c78b5e28a9c3d41e2f3d4c5c6e7f8b9a',
+        fee: 0.68,
+        blockNumber: 6410290,
+        type: 'cash',
+        gateway: 'paypal',
+        gatewayDetails: 'paypal_iconfarvie@gmail.com'
+      },
+      {
+        id: 'tx_hist_2',
+        amountCoin: 30.00,
+        amountUSD: 4275.00,
+        address: '0x328ea8fb9c3d4b1a2e3f4c5d6e7a8b9c0d1e2f3a',
+        status: 'confirmed',
+        verificationStatus: 'verified',
+        timestamp: now - 3600000 * 120, // 5 days ago
+        txHash: '0x882a3c4f5e6d7f8d9a0c1b2f3a4e5f6c7a8b9c0d',
+        fee: 0.15,
+        blockNumber: 6413498,
+        type: 'crypto',
+        crypto: 'HSC'
+      },
+      {
+        id: 'tx_hist_3',
+        amountCoin: 0.0085,
+        amountUSD: 807.50,
+        address: 'bc1qf5ea89c4d3a2e3f4c5d6e7f8a9b0c1d2e3f4a5b',
+        status: 'confirmed',
+        verificationStatus: 'verified',
+        timestamp: now - 3600000 * 72, // 3 days ago
+        txHash: '0xf9d8c7b6a5e4d3c2b1a0f8e7d6c5b4a3c2b1a0f8',
+        fee: 0.0001,
+        blockNumber: 6415982,
+        type: 'crypto',
+        crypto: 'BTC'
+      },
+      {
+        id: 'tx_hist_4',
+        amountCoin: 220.00,
+        amountUSD: 83.60,
+        address: '0x992a8fc3401fb9be2d3a4ef5c6d7a8bf627def48',
+        status: 'confirmed',
+        verificationStatus: 'verified',
+        timestamp: now - 3600000 * 30, // 1.25 days ago
+        txHash: '0x6e7d8c9b0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d',
+        fee: 1.5,
+        blockNumber: 6419208,
+        type: 'crypto',
+        crypto: 'DOGE'
+      }
+    ];
+    localStorage.setItem('fast_miner_payouts', JSON.stringify(seeded));
+    return seeded;
   });
 
   // --- User Activities & Custom Transaction ID Registry ---
@@ -583,6 +744,26 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setUserTransactions(prev => [newTx, ...prev]);
     return newTx;
+  };
+
+  // --- Performance Stats History Engine ---
+  const [performanceHistory, setPerformanceHistory] = useState<PerformanceRecord[]>(() => {
+    const saved = localStorage.getItem('fast_miner_perf_history');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('fast_miner_perf_history', JSON.stringify(performanceHistory));
+  }, [performanceHistory]);
+
+  const clearPerformanceHistory = () => {
+    setPerformanceHistory([]);
+    localStorage.removeItem('fast_miner_perf_history');
   };
 
 
@@ -836,6 +1017,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     usd,
     lifetimeMined,
     user,
+    isDynamicCoolingActive,
+    stats,
   });
 
   // Keep the ref updated on every render
@@ -851,16 +1034,48 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       usd,
       lifetimeMined,
       user,
+      isDynamicCoolingActive,
+      stats,
     };
-  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user]);
+  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats]);
 
   // Auto-save fast-changing variables periodically (every 3 seconds) to prevent heavy main thread blocking
   useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
+    const autoSaveInterval = setInterval(async () => {
       const current = miningStateRef.current;
       localStorage.setItem('fast_miner_coins', current.coins.toString());
       localStorage.setItem('fast_miner_usd', current.usd.toString());
       localStorage.setItem('fast_miner_lifetime', current.lifetimeMined.toString());
+
+      // Append real-time performance logging record
+      const newRec: PerformanceRecord = {
+        id: `perf-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        timestamp: Date.now(),
+        hashRate: current.stats.hashRate,
+        temperature: current.stats.temperature,
+        powerDraw: current.stats.powerDraw,
+        efficiency: current.stats.efficiency,
+        activeCrypto: current.activeCrypto,
+      };
+      setPerformanceHistory(prev => [...prev, newRec].slice(-1000));
+
+      // If simulated mode is disabled and they are logged in, sync instantly to database and append storage log
+      if (current.user && current.user.uid) {
+        const isSimDisabled = localStorage.getItem('fast_miner_disable_simulation') === 'true';
+        if (isSimDisabled) {
+          try {
+            const { saveUserProfile } = await import('../firebaseSync');
+            await saveUserProfile(current.user.uid, current.user, current.coins, current.usd, current.lifetimeMined);
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const logLine = `[storage] [${timestamp}] Saved state to database (UID: ${current.user.uid.substring(0,8)}...). Balance = ${current.coins.toFixed(6)} ${current.activeCrypto}, Valuation = $${current.usd.toFixed(2)}`;
+            console.log(logLine);
+            setRealtimeStorageLogs(prev => [logLine, ...prev].slice(0, 50));
+          } catch (e: any) {
+            console.warn('Real-time database save failed:', e);
+          }
+        }
+      }
     }, 3000);
 
     // Also save on window beforeunload
@@ -889,7 +1104,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Calculate dynamic outputs whenever upgrades state shifts
   const calculateRigMetrics = () => {
-    const { upgrades: curUpgrades, activeBoosters: curBoosters, inventory: curInventory, isClusterAutoMining: curCluster } = miningStateRef.current;
+    const { upgrades: curUpgrades, activeBoosters: curBoosters, inventory: curInventory, isClusterAutoMining: curCluster, isDynamicCoolingActive: curDynamicCooling } = miningStateRef.current;
     let totalHash = 0;
     let basePower = 0;
     let totalHeatGen = 0;
@@ -953,6 +1168,18 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         coolingPower += Math.abs(cool.multiplier) * cool.level;
       }
     });
+
+    if (curDynamicCooling) {
+      // Dynamic cooling PROFILE: Automatically scales fan intensity.
+      // Based on real-time temperature feedback from the node's thermal sensors,
+      // we boost cooling power as temperature climbs past 45°C.
+      const currentTemp = tempRef.current;
+      if (currentTemp > 45) {
+        // Max boost factor scales up to 3.0x scaling of cooling capacity to actively fight over-throttling!
+        const thermalSurge = Math.min(3.0, 1.0 + (currentTemp - 45) * 0.04);
+        coolingPower *= thermalSurge;
+      }
+    }
 
     // Apply Master Auto Mining Cluster Sync (Synchronous 1.5x speed boost to all owned machines and +35.0 MH/s cloud mining slot injection)
     if (curCluster) {
@@ -1078,6 +1305,10 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Simulates live blockchain transaction processing on the connected L1/2 gateways
   useEffect(() => {
     const txTimer = setInterval(() => {
+      const isSimDisabled = localStorage.getItem('fast_miner_disable_simulation') === 'true';
+      if (isSimDisabled) {
+        return; // Halt system simulation threads to log real database syncs
+      }
       const { activeCrypto: curCrypto, isClusterAutoMining: curCluster, prices: curPrices } = miningStateRef.current;
       const cryptos = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'];
       const randomCrypto = cryptos[Math.floor(Math.random() * cryptos.length)];
@@ -1741,6 +1972,179 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const initiateAssetTransfer = (crypto: string, recipientAddress: string, amount: number, name?: string) => {
+    if (!recipientAddress || recipientAddress.length < 8) {
+      return { success: false, message: 'Invalid recipient wallet key format.' };
+    }
+
+    const coinBalance = crypto === activeCrypto ? coins : (balances[crypto] ?? 0);
+
+    if (amount <= 0) {
+      return { success: false, message: 'Please enter a valid amount higher than 0.' };
+    }
+
+    if (coinBalance < amount) {
+      return { success: false, message: `Insufficient ${crypto} balance.` };
+    }
+
+    let nextCoins = coins;
+    let nextBalances = { ...balances };
+
+    // Deduct from sender's balance
+    if (crypto === activeCrypto) {
+      nextCoins -= amount;
+      setCoins(nextCoins);
+    } else {
+      nextBalances[crypto] -= amount;
+      setBalances(nextBalances);
+      localStorage.setItem('fast_miner_balances', JSON.stringify(nextBalances));
+    }
+
+    const cryptoPrice = prices[crypto] || 1.0;
+    const usdValue = amount * cryptoPrice;
+    const feeAmount = amount * 0.005; // 0.5% peer transfer gas fee
+
+    const characters = '0123456789abcdef';
+    let txHash = '0x';
+    for (let i = 0; i < 48; i++) {
+      txHash += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    const blockNum = Math.floor(6305000 + Math.random() * 250000);
+
+    const newTx: PayoutTransaction = {
+      id: `tx_transfer_${Date.now()}`,
+      amountCoin: Number(amount.toFixed(crypto === 'DOGE' ? 2 : 5)),
+      amountUSD: Number(usdValue.toFixed(2)),
+      address: recipientAddress,
+      status: 'pending',
+      verificationStatus: 'unverified',
+      timestamp: Date.now(),
+      txHash,
+      fee: Number(feeAmount.toFixed(crypto === 'DOGE' ? 2 : 5)),
+      blockNumber: blockNum,
+      type: 'transfer',
+      crypto: crypto,
+      
+      isTransfer: true,
+      transferType: 'out',
+      senderAddress: payoutAddress || '0x_self_active_node',
+      recipientName: name || 'Peer Cryptographic Node',
+      recipientConfirmed: false,
+    };
+
+    setPayouts(prev => {
+      const updated = [newTx, ...prev];
+      localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+      return updated;
+    });
+
+    logUserTransaction(
+      'WITHDRAWAL',
+      `Asset Transfer initiated: ${amount.toFixed(4)} ${crypto} P2P`,
+      `${amount.toFixed(4)} ${crypto} (≈ $${usdValue.toLocaleString()})`,
+      recipientAddress,
+      'PENDING'
+    );
+
+    // Sync to Firestore if user profile exists
+    if (user && !user.uid.startsWith('user_')) {
+      import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile }) => {
+        try {
+          await savePayoutTransaction(user.uid, newTx);
+          await saveUserProfile(user.uid, user, nextCoins, usd, lifetimeMined);
+        } catch (err) {
+          console.error('Error syncing asset transfer to Firestore:', err);
+        }
+      });
+    }
+
+    setNotification(`P2P Transfer of ${amount.toFixed(4)} ${crypto} dispatched! Awaiting recipient handshake...`);
+    return { success: true, message: 'Transfer dispatched successfully!', tx: newTx };
+  };
+
+  const confirmAssetTransfer = async (txId: string): Promise<{ success: boolean; message: string }> => {
+    let targetTx: PayoutTransaction | undefined;
+    
+    // Find transaction
+    setPayouts(prev => {
+      const idx = prev.findIndex(t => t.id === txId);
+      if (idx !== -1) {
+        targetTx = prev[idx];
+      }
+      return prev;
+    });
+
+    if (!targetTx) {
+      return { success: false, message: 'Transaction hash not found.' };
+    }
+
+    if (targetTx.status === 'confirmed' || targetTx.recipientConfirmed) {
+      return { success: false, message: 'Transfer is already settled and confirmed.' };
+    }
+
+    // Update state to confirmed
+    const updatedPayouts = payouts.map(t => {
+      if (t.id === txId) {
+        return {
+          ...t,
+          status: 'confirmed' as const,
+          verificationStatus: 'verified' as const,
+          recipientConfirmed: true,
+          recipientConfirmedAt: Date.now()
+        };
+      }
+      return t;
+    });
+
+    setPayouts(updatedPayouts);
+    localStorage.setItem('fast_miner_payouts', JSON.stringify(updatedPayouts));
+
+    // Credit recipient balance
+    const crypto = targetTx.crypto || 'HSC';
+    const amountCoin = targetTx.amountCoin || 0;
+
+    if (targetTx.transferType === 'in' || targetTx.address === payoutAddress || targetTx.address === '0x_self_active_node') {
+      if (crypto === activeCrypto) {
+        setCoins(c => c + amountCoin);
+      } else {
+        setBalances(prev => {
+          const updated = { ...prev, [crypto]: (prev[crypto] ?? 0) + amountCoin };
+          localStorage.setItem('fast_miner_balances', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    }
+
+    logUserTransaction(
+      'CUSTOM_GENERATED',
+      `Asset Received & Confirmed: ${amountCoin.toFixed(4)} ${crypto}`,
+      `${amountCoin.toFixed(4)} ${crypto}`,
+      targetTx.senderAddress || 'Peer Node Relay',
+      'VERIFIED'
+    );
+
+    // Sync to Firestore if user profile exists
+    if (user && !user.uid.startsWith('user_')) {
+      const finalTx = updatedPayouts.find(t => t.id === txId);
+      if (finalTx) {
+        const { savePayoutTransaction, saveUserProfile } = await import('../firebaseSync');
+        try {
+          await savePayoutTransaction(user.uid, finalTx);
+          let currentCoins = coins;
+          if (crypto === activeCrypto) {
+            currentCoins += amountCoin;
+          }
+          await saveUserProfile(user.uid, user, currentCoins, usd, lifetimeMined);
+        } catch (err) {
+          console.error('Error syncing recipient confirmation to Firestore:', err);
+        }
+      }
+    }
+
+    setNotification(`Transaction successfully settled! Handshake established with peer.`);
+    return { success: true, message: 'Transfer settled successfully!' };
+  };
+
   const updateTxStatus = (txId: string, nextStatus: 'pending' | 'processing' | 'confirmed') => {
     setPayouts(prev => {
       const updated = prev.map(t => {
@@ -2120,6 +2524,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       balances,
       prices,
       requestCryptoTransfer,
+      initiateAssetTransfer,
+      confirmAssetTransfer,
 
       // One-tap Auto Mining Cluster Core & Gateway telemetry
       isClusterAutoMining,
@@ -2152,6 +2558,18 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Emergency Actions
       emergencyShutdown,
       emergencyCooling,
+
+      // Real-time Storage logs
+      realtimeStorageLogs,
+      setRealtimeStorageLogs,
+
+      // Dynamic Cooling Profile
+      isDynamicCoolingActive,
+      setIsDynamicCoolingActive,
+
+      // Performance Stats Export
+      performanceHistory,
+      clearPerformanceHistory,
     }}>
       {children}
     </MiningContext.Provider>

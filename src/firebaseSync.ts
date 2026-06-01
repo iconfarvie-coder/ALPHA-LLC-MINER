@@ -75,7 +75,13 @@ export async function savePayoutTransaction(
       crypto: tx.crypto || 'HSC',
       gateway: tx.gateway || 'wallet',
       gatewayDetails: tx.gatewayDetails || '',
-      holdForBatching: tx.holdForBatching || false
+      holdForBatching: tx.holdForBatching || false,
+      isTransfer: tx.isTransfer || false,
+      transferType: tx.transferType || null,
+      senderAddress: tx.senderAddress || null,
+      recipientName: tx.recipientName || null,
+      recipientConfirmed: tx.recipientConfirmed || false,
+      recipientConfirmedAt: tx.recipientConfirmedAt || null
     };
     await setDoc(docRef, data);
   } catch (error) {
