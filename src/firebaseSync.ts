@@ -74,7 +74,8 @@ export async function savePayoutTransaction(
       type: tx.type || 'cash',
       crypto: tx.crypto || 'HSC',
       gateway: tx.gateway || 'wallet',
-      gatewayDetails: tx.gatewayDetails || ''
+      gatewayDetails: tx.gatewayDetails || '',
+      holdForBatching: tx.holdForBatching || false
     };
     await setDoc(docRef, data);
   } catch (error) {

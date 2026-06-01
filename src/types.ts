@@ -31,6 +31,7 @@ export interface PayoutTransaction {
   crypto?: string;
   gateway?: 'paypal' | 'bank' | 'wallet';
   gatewayDetails?: string;
+  holdForBatching?: boolean;
 }
 
 export interface PriceDataPoint {
@@ -92,5 +93,29 @@ export interface UserProfile {
   verified: boolean;
   createdAt: number;
 }
+
+export interface SimulatedBlock {
+  id: string;
+  height: number;
+  crypto: string;
+  difficulty: string;
+  miner: string;
+  reward: number;
+  timestamp: number;
+  hash: string;
+}
+
+export interface UserTransaction {
+  id: string;
+  type: 'COIN_SELL' | 'UPGRADE_BUY' | 'BOOSTER_ACTIVATE' | 'WITHDRAWAL' | 'CUSTOM_GENERATED';
+  title: string;
+  amount: string;
+  recipient: string;
+  timestamp: number;
+  status: 'PENDING' | 'CONFIRMED' | 'VERIFIED';
+  blockchainHash: string;
+}
+
+
 
 

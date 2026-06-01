@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile } from '../types';
+import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile, SimulatedBlock, UserTransaction } from '../types';
 import { INITIAL_UPGRADES, NEWS_TEMPLATES } from '../data';
 
 interface MiningContextType {
@@ -14,22 +14,27 @@ interface MiningContextType {
   news: MarketNews[];
   activeNews: MarketNews | null;
   marketHistory: PriceDataPoint[];
-  activeTab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails';
-  setActiveTab: (tab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails') => void;
+  activeTab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'support';
+  setActiveTab: (tab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'support') => void;
   mineClick: () => void;
   buyUpgrade: (id: string) => boolean;
   sellCoins: (amount: number) => void;
   sellAllCoins: () => void;
-  requestPayout: (address: string, usdAmount: number, gateway?: 'paypal' | 'bank' | 'wallet', gatewayDetails?: string) => { success: boolean; message: string; tx?: PayoutTransaction };
+  requestPayout: (address: string, usdAmount: number, gateway?: 'paypal' | 'bank' | 'wallet', gatewayDetails?: string, holdForBatching?: boolean) => { success: boolean; message: string; tx?: PayoutTransaction };
   setPayoutAddress: (address: string) => void;
   resetProgress: () => void;
+  batchPayouts: (txIds: string[]) => { success: boolean; message: string; tx?: PayoutTransaction };
+
+  // Block explorer
+  simulatedBlocks: SimulatedBlock[];
+
 
   // Multiple Cryptocurrencies Selection & Wallets
   activeCrypto: string;
   setActiveCrypto: (crypto: string) => void;
   balances: Record<string, number>;
   prices: Record<string, number>;
-  requestCryptoTransfer: (crypto: string, address: string, cryptoAmount: number) => { success: boolean; message: string; tx?: PayoutTransaction };
+  requestCryptoTransfer: (crypto: string, address: string, cryptoAmount: number, holdForBatching?: boolean) => { success: boolean; message: string; tx?: PayoutTransaction };
 
   // One-tap Auto Mining Cluster Core & Gateway telemetry
   isClusterAutoMining: boolean;
@@ -55,13 +60,17 @@ interface MiningContextType {
 
   // Real-Fake Secure One-Tap Account Authentication
   user: UserProfile | null;
-  login: (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string, uid?: string) => void;
+  login: (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string, uid?: string, rememberMe?: boolean) => void;
   logout: () => void;
   verifyPayout: (txId: string) => Promise<{ success: boolean; message: string }>;
 
   // Emergency actions
   emergencyShutdown: () => void;
   emergencyCooling: () => boolean;
+
+  // Manual & Auto Action Transaction Registry
+  userTransactions: UserTransaction[];
+  logUserTransaction: (type: UserTransaction['type'], title: string, amount: string, recipient: string, status?: UserTransaction['status']) => UserTransaction;
 }
 
 const MiningContext = createContext<MiningContextType | undefined>(undefined);
@@ -232,7 +241,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // --- Real-Fake Secure One-Tap Account Authentication ---
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('fast_miner_user');
+    const saved = localStorage.getItem('fast_miner_user') || sessionStorage.getItem('fast_miner_user');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -241,7 +250,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return null;
   });
 
-  const login = async (provider: 'google' | 'apple' | 'phone', identifier: string, name?: string, uid?: string) => {
+  const login = async (
+    provider: 'google' | 'apple' | 'phone', 
+    identifier: string, 
+    name?: string, 
+    uid?: string,
+    rememberMe: boolean = true
+  ) => {
     let formattedName = name || '';
     let email: string | undefined = undefined;
     let phone: string | undefined = undefined;
@@ -272,7 +287,22 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     setUser(newUser);
-    localStorage.setItem('fast_miner_user', JSON.stringify(newUser));
+    localStorage.setItem('fast_miner_remember_me', rememberMe ? 'true' : 'false');
+    localStorage.setItem('fast_miner_last_login_method', provider);
+    if (email) {
+      localStorage.setItem('fast_miner_last_login_email', email);
+    }
+    if (phone) {
+      localStorage.setItem('fast_miner_last_login_phone', phone);
+    }
+
+    if (rememberMe) {
+      localStorage.setItem('fast_miner_user', JSON.stringify(newUser));
+      sessionStorage.removeItem('fast_miner_user');
+    } else {
+      sessionStorage.setItem('fast_miner_user', JSON.stringify(newUser));
+      localStorage.removeItem('fast_miner_user');
+    }
     
     // Also store active wallet address/paypal email if not set
     if (provider === 'google' && email) {
@@ -317,6 +347,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setUser(null);
     localStorage.removeItem('fast_miner_user');
+    sessionStorage.removeItem('fast_miner_user');
+    localStorage.removeItem('fast_miner_remember_me');
     setNotification("Successfully signed out. Local device session active.");
   };
 
@@ -326,7 +358,83 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   
   // --- Active Tab ---
-  const [activeTab, setActiveTab] = useState<'mine' | 'upgrades' | 'market' | 'payouts' | 'emails'>('mine');
+  const [activeTab, setActiveTab] = useState<'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'support'>('mine');
+
+  // --- Simulated Blockchain Blocks ---
+  const [simulatedBlocks, setSimulatedBlocks] = useState<SimulatedBlock[]>(() => {
+    const saved = localStorage.getItem('fast_miner_simulated_blocks');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    const initialHistory: SimulatedBlock[] = [];
+    const cryptos = ['HSC', 'BTC', 'ETH', 'SOL', 'DOGE'];
+    const miners = [
+      'bc1q5x92j6_Bitmain_S21',
+      '0x5a20d...91c1_HiveOS_3',
+      'Firedancer_Validator_Node_4',
+      'Antpool_Consensus_Unit_9',
+      'DogePool_Asic_Cluster_0',
+      'SoloMiner_RaspberryPi_v5',
+      'Sovereign_L1_Mesh_Peer_77',
+      'Genesis_Decentral_Peer_15',
+      'bc1qp1w2t3_node',
+      '0x3841a1c9_arbitrum',
+      '8hN9bXp_helius',
+    ];
+
+    const baseHeights: Record<string, number> = {
+      HSC: 184520,
+      BTC: 844201,
+      ETH: 19894032,
+      SOL: 265042180,
+      DOGE: 5092044
+    };
+
+    const difficulties: Record<string, string> = {
+      HSC: '8.52 G',
+      BTC: '78.43 T',
+      ETH: '12.50 P',
+      SOL: '44.82 M',
+      DOGE: '11.85 M'
+    };
+
+    const rewards: Record<string, number> = {
+      HSC: 100,
+      BTC: 3.125,
+      ETH: 2.0,
+      SOL: 1.5,
+      DOGE: 10000
+    };
+
+    const now = Date.now();
+    for (let i = 0; i < 30; i++) {
+      const crypto = cryptos[Math.floor(Math.random() * cryptos.length)];
+      const height = baseHeights[crypto] - (i * 2 + Math.floor(Math.random() * 3));
+      const rId = Math.floor(100000 + Math.random() * 900000);
+      const hashStr = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      initialHistory.push({
+        id: `block_${now - i * 45000}_${rId}`,
+        height,
+        crypto,
+        difficulty: difficulties[crypto],
+        miner: miners[Math.floor(Math.random() * miners.length)],
+        reward: rewards[crypto],
+        timestamp: now - i * 45000 - Math.floor(Math.random() * 5000),
+        hash: '00000000' + hashStr.substring(0, 56)
+      });
+    }
+    return initialHistory;
+  });
+
+  // Save blocks to localStorage when modified
+  useEffect(() => {
+    localStorage.setItem('fast_miner_simulated_blocks', JSON.stringify(simulatedBlocks));
+  }, [simulatedBlocks]);
+
 
   // --- Upgrades State ---
   const [upgrades, setUpgrades] = useState<MiningUpgrade[]>(() => {
@@ -411,6 +519,72 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saved = localStorage.getItem('fast_miner_payouts');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // --- User Activities & Custom Transaction ID Registry ---
+  const [userTransactions, setUserTransactions] = useState<UserTransaction[]>(() => {
+    const saved = localStorage.getItem('fast_miner_user_transactions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    const now = Date.now();
+    return [
+      {
+        id: `tx-genesis-${Math.floor(1000 * Math.random())}`,
+        type: 'CUSTOM_GENERATED' as const,
+        title: 'ALPHA LLC MINER Node Operational',
+        amount: '0.00 HSC',
+        recipient: 'Mainnet Consensus Layer',
+        timestamp: now - 3600000 * 2,
+        status: 'VERIFIED' as const,
+        blockchainHash: '0x00000000ALPHA_LLC_MINER_CREDENTIALS_VALIDATED'
+      },
+      {
+        id: `tx-genesis-${Math.floor(1000 * Math.random() + 1000)}`,
+        type: 'UPGRADE_BUY' as const,
+        title: 'L1 Interface Sync Handshake Bootstrap',
+        amount: '$0.00 USD',
+        recipient: 'Multi-Protocol Relay Network',
+        timestamp: now - 3600000,
+        status: 'VERIFIED' as const,
+        blockchainHash: '0x0000000078D1C90AA620EEF27C3841A1C9A174F8B33332D'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('fast_miner_user_transactions', JSON.stringify(userTransactions));
+  }, [userTransactions]);
+
+  const logUserTransaction = (
+    type: UserTransaction['type'],
+    title: string,
+    amount: string,
+    recipient: string,
+    status: UserTransaction['status'] = 'CONFIRMED'
+  ): UserTransaction => {
+    const characters = '0123456789ABCDEF';
+    let blockchainHash = '0x';
+    for (let i = 0; i < 40; i++) {
+      blockchainHash += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+
+    const newTx: UserTransaction = {
+      id: `tx-user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      type,
+      title,
+      amount,
+      recipient,
+      timestamp: Date.now(),
+      status,
+      blockchainHash
+    };
+
+    setUserTransactions(prev => [newTx, ...prev]);
+    return newTx;
+  };
+
 
   // --- Daily Login & Gameplay Boosters States ---
   const [simulatedOffset, setSimulatedOffset] = useState<number>(() => {
@@ -929,7 +1103,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const grossAmount = amountSeed;
       const fee = grossAmount * feeRate;
 
-      // Update node gateway height state
+      // Update node gateway height state and record the updated height to generate a solved block
+      let resolvedHeight = 0;
       setLiveGateways(prev => prev.map(gw => {
         const increment = Math.floor(Math.random() * 3) + 1;
         const isMatch = (gw.id === 'btc_rpc' && randomCrypto === 'BTC') ||
@@ -937,12 +1112,92 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                         (gw.id === 'sol_rpc' && randomCrypto === 'SOL') ||
                         (gw.id === 'doge_rpc' && randomCrypto === 'DOGE') ||
                         (gw.id === 'hsc_rpc' && randomCrypto === 'HSC');
+        const finalHeight = isMatch ? gw.height + increment : gw.height + (Math.random() > 0.85 ? 1 : 0);
+        if (isMatch) {
+          resolvedHeight = finalHeight;
+        }
         return {
           ...gw,
-          height: isMatch ? gw.height + increment : gw.height + (Math.random() > 0.85 ? 1 : 0),
+          height: finalHeight,
           latency: Math.max(2, gw.latency + Math.floor((Math.random() - 0.5) * 8)),
         };
       }));
+
+      // Create simulated block solved across the network
+      if (resolvedHeight > 0) {
+        setSimulatedBlocks(prev => {
+          const minersList = [
+            'bc1q5x92j6_Bitmain_S21',
+            '0x5a20d...91c1_HiveOS_3',
+            'Firedancer_Validator_Node_4',
+            'Antpool_Consensus_Unit_9',
+            'DogePool_Asic_Cluster_0',
+            'SoloMiner_RaspberryPi_v5',
+            'Sovereign_L1_Mesh_Peer_77',
+            'Genesis_Decentral_Peer_15',
+            'bc1qp1w2t3_node',
+            '0x3841a1c9_arbitrum',
+            '8hN9bXp_helius',
+          ];
+
+          let minerName = minersList[Math.floor(Math.random() * minersList.length)];
+          const hasHashrate = miningStateRef.current.stats?.hashRate > 0;
+          if (hasHashrate && Math.random() < 0.15) {
+            const userName = miningStateRef.current.user?.name || 'Local Cluster Rig';
+            minerName = `✨ ${userName} (Your Node #${Math.floor(1 + Math.random() * 3)})`;
+            
+            // Sweet active bonus reward for solving blocks!
+            const bonusMap: Record<string, number> = {
+              HSC: 1.5,
+              BTC: 0.00005,
+              ETH: 0.001,
+              SOL: 0.02,
+              DOGE: 10
+            };
+            const rewardAmt = bonusMap[randomCrypto] || 1.0;
+            const hscBasePrice = 142.50;
+            const rewardCryptoPrice = curPrices[randomCrypto] || 1.0;
+            const activeCryptoPrice = curPrices[curCrypto] || hscBasePrice;
+            const finalCashValueInUSD = rewardAmt * rewardCryptoPrice;
+            const finalActiveCoinsReward = finalCashValueInUSD / activeCryptoPrice;
+
+            setCoins(c => c + finalActiveCoinsReward);
+            setNotification(`🏆 BLOCK SOLVED! Your rig successfully mined Block #${resolvedHeight} on the ${randomCrypto} network and earned an extra ${rewardAmt} ${randomCrypto} validation bonus!`);
+          }
+
+          const difficulties: Record<string, string> = {
+            HSC: '8.52 G',
+            BTC: '78.43 T',
+            ETH: '12.50 P',
+            SOL: '44.82 M',
+            DOGE: '11.85 M'
+          };
+
+          const rewards: Record<string, number> = {
+            HSC: 100,
+            BTC: 3.125,
+            ETH: 2.0,
+            SOL: 1.5,
+            DOGE: 10000
+          };
+
+          const hashStr = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          const rId = Math.floor(100000 + Math.random() * 900000);
+
+          const newBlock: SimulatedBlock = {
+            id: `block_${Date.now()}_${rId}`,
+            height: resolvedHeight,
+            crypto: randomCrypto,
+            difficulty: difficulties[randomCrypto] || '1.0 M',
+            miner: minerName,
+            reward: rewards[randomCrypto] || 1.0,
+            timestamp: Date.now(),
+            hash: '00000000' + hashStr.substring(0, 56)
+          };
+
+          return [newBlock, ...prev.slice(0, 99)]; // Keep up to 100 blocks
+        });
+      }
 
       // Assemble processed transaction data
       const newTx = {
@@ -956,6 +1211,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
 
       setProcessedTxs(prev => [newTx, ...prev.slice(0, 15)]);
+
 
       if (curCluster) {
         // Validation rewards
@@ -1080,6 +1336,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const nextLevel = item.level + 1;
         const nextCost = Math.round(item.baseCost * Math.pow(item.costMultiplier, nextLevel));
 
+        logUserTransaction(
+          'UPGRADE_BUY',
+          `Upgrade hardware: ${item.name} to Lvl ${nextLevel}`,
+          `$${item.cost.toLocaleString()}`,
+          'Hardware Inventory System'
+        );
+
         const updated = [...curUpgrades];
         updated[targetIndex] = {
           ...item,
@@ -1102,6 +1365,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCoins(nextCoins);
       setUsd(nextUsd);
 
+      logUserTransaction(
+        'COIN_SELL',
+        `Sold ${amount.toFixed(4)} ${activeCrypto} Coins`,
+        formatVal(gainedUSD),
+        'DEX Liquidity Pool'
+      );
+
       if (user && !user.uid.startsWith('user_')) {
         try {
           const { saveUserProfile } = await import('../firebaseSync');
@@ -1120,6 +1390,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const nextUsd = usd + gainedUSD;
       setCoins(nextCoins);
       setUsd(nextUsd);
+
+      logUserTransaction(
+        'COIN_SELL',
+        `Sold All ${coins.toFixed(4)} ${activeCrypto} Coins`,
+        formatVal(gainedUSD),
+        'DEX Liquidity Pool'
+      );
 
       if (user && !user.uid.startsWith('user_')) {
         try {
@@ -1235,7 +1512,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // --- Real-Fake Fast, Instant, Satisfying Blockchain Payout Processing! ---
-  const requestPayout = (address: string, usdAmount: number, gateway: 'paypal' | 'bank' | 'wallet' = 'wallet', gatewayDetails?: string) => {
+  const requestPayout = (address: string, usdAmount: number, gateway: 'paypal' | 'bank' | 'wallet' = 'wallet', gatewayDetails?: string, holdForBatching?: boolean) => {
     if (!address || address.length < 5) {
       return { success: false, message: 'Invalid target destination identifier.' };
     }
@@ -1319,7 +1596,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         type: 'cash',
         crypto: activeCrypto,
         gateway,
-        gatewayDetails
+        gatewayDetails,
+        holdForBatching: holdForBatching || false
       };
 
       // Push into pending payouts
@@ -1329,7 +1607,17 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return updated;
       });
 
-      if (user && !user.uid.startsWith('user_')) {
+      logUserTransaction(
+        'WITHDRAWAL',
+        `Withdrawal request: ${usdAmount} USD via ${gateway.toUpperCase()}${holdForBatching ? ' (Mempool Held)' : ''}`,
+        `$${usdAmount.toLocaleString()}`,
+        address,
+        'PENDING'
+      );
+
+      if (holdForBatching) {
+        // Queue for Batch Processing - no automatic timers started
+      } else if (user && !user.uid.startsWith('user_')) {
         // Logged-in full-stack user: Sync to secure Firestore & require manual verification
         import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile }) => {
           try {
@@ -1356,7 +1644,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const requestCryptoTransfer = (crypto: string, address: string, cryptoAmount: number) => {
+  const requestCryptoTransfer = (crypto: string, address: string, cryptoAmount: number, holdForBatching?: boolean) => {
     if (!address || address.length < 8) {
       return { success: false, message: 'Invalid target wallet key format.' };
     }
@@ -1404,7 +1692,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         fee: Number(feeAmount.toFixed(crypto === 'DOGE' ? 2 : 5)),
         blockNumber: blockNum,
         type: 'crypto',
-        crypto: crypto
+        crypto: crypto,
+        holdForBatching: holdForBatching || false
       };
       
       setPayouts(prev => {
@@ -1413,7 +1702,17 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return updated;
       });
 
-      if (user && !user.uid.startsWith('user_')) {
+      logUserTransaction(
+        'WITHDRAWAL',
+        `Crypto Dispatch: ${cryptoAmount.toFixed(4)} ${crypto}${holdForBatching ? ' (Mempool Held)' : ''}`,
+        `${cryptoAmount.toFixed(4)} ${crypto} (≈ $${usdValue.toLocaleString()})`,
+        address,
+        'PENDING'
+      );
+
+      if (holdForBatching) {
+        // Held in mempool for manual aggregate batching - skip timers & firestore auto rules
+      } else if (user && !user.uid.startsWith('user_')) {
         // Logged-in full-stack user: Sync to secure Firestore & require manual verification
         import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile }) => {
           try {
@@ -1515,6 +1814,147 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const batchPayouts = (txIds: string[]): { success: boolean; message: string; tx?: PayoutTransaction } => {
+    if (!txIds || txIds.length < 2) {
+      return { success: false, message: 'Please select at least 2 pending transactions to batch.' };
+    }
+
+    const selectedTxs = payouts.filter(tx => txIds.includes(tx.id));
+    if (selectedTxs.length !== txIds.length) {
+      return { success: false, message: 'Could not find all selected transactions in historical ledger.' };
+    }
+
+    const nonPending = selectedTxs.find(tx => tx.status !== 'pending');
+    if (nonPending) {
+      return { success: false, message: `Transaction ${nonPending.id.slice(0, 8)} is already being processed or confirmed. Only pending mempool items can be batched.` };
+    }
+
+    const firstType = selectedTxs[0].type || 'cash';
+    const differentType = selectedTxs.find(tx => (tx.type || 'cash') !== firstType);
+    if (differentType) {
+      return { success: false, message: 'Cannot batch different transaction models (Cash Out and Crypto Dispatch) together.' };
+    }
+
+    const firstAddr = selectedTxs[0].address;
+    const differentAddr = selectedTxs.find(tx => tx.address !== firstAddr);
+    if (differentAddr) {
+      return { success: false, message: 'Cannot batch transactions heading for different target addresses.' };
+    }
+
+    const firstCrypto = selectedTxs[0].crypto || 'HSC';
+    if (firstType === 'crypto') {
+      const differentCrypto = selectedTxs.find(tx => (tx.crypto || 'HSC') !== firstCrypto);
+      if (differentCrypto) {
+        return { success: false, message: 'Cannot batch different cryptocurrencies together.' };
+      }
+    }
+
+    const totalUSD = selectedTxs.reduce((sum, tx) => sum + tx.amountUSD, 0);
+    const totalCoin = selectedTxs.reduce((sum, tx) => sum + tx.amountCoin, 0);
+
+    const sumOriginalFeesCoin = selectedTxs.reduce((sum, tx) => sum + tx.fee, 0);
+    const sumOriginalFeesUSD = selectedTxs.reduce((sum, tx) => {
+      if (tx.type === 'crypto') {
+        const rate = prices[tx.crypto || 'HSC'] || 1;
+        return sum + (tx.fee * rate);
+      } else {
+        return sum + tx.fee;
+      }
+    }, 0);
+
+    // Apply an 80% aggregate gas discount for combining payloads in a single block
+    const discount = 0.20;
+    const newFeeCoin = Number((sumOriginalFeesCoin * discount).toFixed(firstCrypto === 'DOGE' ? 2 : 5));
+    const newFeeUSD = Number((sumOriginalFeesUSD * discount).toFixed(2));
+
+    const savedFeeCoin = sumOriginalFeesCoin - newFeeCoin;
+    const savedFeeUSD = sumOriginalFeesUSD - newFeeUSD;
+
+    let nextUsd = usd;
+    let nextCoins = coins;
+    let nextBalances = { ...balances };
+
+    if (firstType === 'crypto') {
+      if (firstCrypto === activeCrypto) {
+        nextCoins += savedFeeCoin;
+      } else {
+        nextBalances[firstCrypto] = (nextBalances[firstCrypto] || 0) + savedFeeCoin;
+      }
+    } else {
+      nextUsd += savedFeeUSD;
+    }
+
+    setUsd(nextUsd);
+    setCoins(nextCoins);
+    setBalances(nextBalances);
+    localStorage.setItem('fast_miner_balances', JSON.stringify(nextBalances));
+
+    const characters = '0123456789abcdef';
+    let txHash = '0x';
+    for (let i = 0; i < 48; i++) {
+      txHash += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    const blockNum = Math.floor(1024300 + Math.random() * 5000);
+
+    const mergedTx: PayoutTransaction = {
+      id: `tx_batch_${Date.now()}`,
+      amountCoin: Number(totalCoin.toFixed(firstCrypto === 'DOGE' ? 2 : 5)),
+      amountUSD: Number(totalUSD.toFixed(2)),
+      address: firstAddr,
+      status: 'pending',
+      verificationStatus: 'unverified',
+      timestamp: Date.now(),
+      txHash,
+      fee: firstType === 'crypto' ? newFeeCoin : newFeeUSD,
+      blockNumber: blockNum,
+      type: firstType,
+      crypto: firstCrypto,
+      gateway: selectedTxs[0].gateway || 'wallet',
+      gatewayDetails: `Consolidated Batch of ${txIds.length} Payouts. Saved ${firstType === 'crypto' ? `${savedFeeCoin.toFixed(4)} ${firstCrypto}` : formatVal(savedFeeUSD)} in gas!`
+    };
+
+    setPayouts(prev => {
+      const filtered = prev.filter(tx => !txIds.includes(tx.id));
+      const updated = [mergedTx, ...filtered];
+      localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+      return updated;
+    });
+
+    logUserTransaction(
+      'WITHDRAWAL',
+      `Batch settlement: Combined ${txIds.length} transactions into block`,
+      firstType === 'crypto' ? `${totalCoin.toFixed(4)} ${firstCrypto} (≈ $${totalUSD.toLocaleString()})` : `$${totalUSD.toLocaleString()}`,
+      firstAddr,
+      'PENDING'
+    );
+
+    if (user && !user.uid.startsWith('user_')) {
+      import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile, deletePayoutTransaction }) => {
+        try {
+          for (const id of txIds) {
+            await deletePayoutTransaction(user.uid, id);
+          }
+          await savePayoutTransaction(user.uid, mergedTx);
+          await saveUserProfile(user.uid, user, nextCoins, nextUsd, lifetimeMined);
+        } catch (err) {
+          console.error('Error syncing batched payouts:', err);
+        }
+      });
+    } else {
+      setTimeout(() => {
+        updateTxStatus(mergedTx.id, 'processing');
+      }, 4000);
+
+      setTimeout(() => {
+        updateTxStatus(mergedTx.id, 'confirmed');
+      }, 10000);
+    }
+
+    setNotification(`🎉 Batch Consolidated! Aggregated ${txIds.length} transfers. Saved ${firstType === 'crypto' ? `${savedFeeCoin.toFixed(4)} ${firstCrypto}` : formatVal(savedFeeUSD)} on gas which was refunded back to your balance!`);
+
+    return { success: true, message: 'Aggregation successful!', tx: mergedTx };
+  };
+
   // Full system restore
   const resetProgress = () => {
     localStorage.clear();
@@ -1557,6 +1997,15 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       market: 0,
       permanent: 0
     });
+    
+    // Reset block explorer history
+    localStorage.removeItem('fast_miner_simulated_blocks');
+    setSimulatedBlocks([]);
+    
+    // Reset user transactions
+    localStorage.removeItem('fast_miner_user_transactions');
+    setUserTransactions([]);
+    
     setNotification("Simulator restarted to Genesis Blocks successfully!");
   };
 
@@ -1589,15 +2038,13 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const { initAuth } = await import('../firebase');
         unsubscribe = initAuth(
           (firebaseUser, token) => {
-            // Check if login state shifted
-            if (miningStateRef.current.user?.uid !== firebaseUser.uid) {
-              login(
-                'google', 
-                firebaseUser.email || firebaseUser.uid, 
-                firebaseUser.displayName || 'Google Member', 
-                firebaseUser.uid
-              );
-            }
+            // Automatically log in and restore cloud stats on page open
+            login(
+              'google', 
+              firebaseUser.email || firebaseUser.uid, 
+              firebaseUser.displayName || 'Google Member', 
+              firebaseUser.uid
+            );
           },
           () => {
             if (miningStateRef.current.user?.provider === 'google') {
@@ -1660,6 +2107,12 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       requestPayout,
       setPayoutAddress,
       resetProgress,
+      batchPayouts,
+
+      // Block explorer
+      simulatedBlocks,
+      userTransactions,
+      logUserTransaction,
       
       // Multiple Cryptocurrencies Selection & Wallets
       activeCrypto,
