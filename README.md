@@ -1,9 +1,9 @@
-# 👑 Hash Sovereign
+# 👑 Alpha LLC Miner
 
-👋 Welcome to **Hash Sovereign** — an advanced, high-fidelity cryptocurrency cloud mining simulator and decentralized clearing dashboard. Featuring a premium cyber-industrial terminal aesthetic, the system simulates real-time hashing algorithms, reactor core overclocking, and instant direct-connected gift card purchases.
+👋 Welcome to **Alpha LLC Miner** — an advanced, high-fidelity cryptocurrency cloud mining simulator and decentralized clearing dashboard. Featuring a premium cyber-industrial terminal aesthetic, the system simulates real-time hashing algorithms, reactor core overclocking, and instant direct-connected gift card purchases.
 
 <p align="center">
-  <img src="src/assets/images/project_photo_1780441621111.png" alt="Hash Sovereign Dashboard Preview" referrerPolicy="no-referrer" width="100%" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);" />
+  <img src="src/assets/images/project_photo_1780441621111.png" alt="Alpha LLC Miner Dashboard Preview" referrerPolicy="no-referrer" width="100%" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);" />
 </p>
 
 ---
