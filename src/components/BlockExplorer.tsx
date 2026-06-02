@@ -729,7 +729,21 @@ export function BlockExplorer() {
                           </div>
 
                           <div className="flex flex-col gap-1 text-[10px] text-white/40">
-                            <div className="flex items-center gap-1.5">
+                            {tx.referenceNumber && (
+                              <div className="flex items-center gap-1.5 border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 rounded max-w-max">
+                                <span className="font-black text-emerald-400 tracking-wider">REFERENCE NO:</span>
+                                <span 
+                                  className="font-black text-emerald-300 font-mono select-all hover:text-emerald-400 cursor-copy flex items-center gap-1"
+                                  onClick={() => triggerCopy(tx.referenceNumber!)}
+                                  title="Click to copy Reference Number"
+                                >
+                                  <span>{tx.referenceNumber}</span>
+                                  <Copy className="h-3 w-3 text-emerald-400" />
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1.5 mt-1">
                               <span className="font-extrabold">TRANSACTION ID:</span>
                               <span 
                                 className="font-bold text-white/80 hover:text-emerald-400 cursor-copy flex items-center gap-1.5 select-all"

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile, SimulatedBlock, UserTransaction, PerformanceRecord } from '../types';
+import { MiningUpgrade, PayoutTransaction, PriceDataPoint, MarketNews, MiningStats, ActiveBooster, BoosterInventory, DailyRewardState, UserProfile, SimulatedBlock, UserTransaction, PerformanceRecord, AppToast } from '../types';
 import { INITIAL_UPGRADES, NEWS_TEMPLATES } from '../data';
+import { playSound, speakVoice } from '../utils/audio';
 
 interface MiningContextType {
   coins: number;
@@ -24,6 +25,12 @@ interface MiningContextType {
   setPayoutAddress: (address: string) => void;
   resetProgress: () => void;
   batchPayouts: (txIds: string[]) => { success: boolean; message: string; tx?: PayoutTransaction };
+
+  // Master sound control
+  soundEnabled: boolean;
+  setSoundEnabled: (val: boolean) => void;
+  voicePromptsEnabled: boolean;
+  setVoicePromptsEnabled: (val: boolean) => void;
 
   // Block explorer
   simulatedBlocks: SimulatedBlock[];
@@ -74,10 +81,13 @@ interface MiningContextType {
   // Emergency actions
   emergencyShutdown: () => void;
   emergencyCooling: () => boolean;
+  isSystemOn: boolean;
+  setIsSystemOn: (val: boolean) => void;
+  buyGiftCards: (cart: Array<{ brand: string; value: number; qty: number }>, deliverEmail: string) => { success: boolean; message: string };
 
   // Manual & Auto Action Transaction Registry
   userTransactions: UserTransaction[];
-  logUserTransaction: (type: UserTransaction['type'], title: string, amount: string, recipient: string, status?: UserTransaction['status']) => UserTransaction;
+  logUserTransaction: (type: UserTransaction['type'], title: string, amount: string, recipient: string, status?: UserTransaction['status'], overrideRef?: string) => UserTransaction;
 
   // Real-time Storage & Telemetry logging
   realtimeStorageLogs: string[];
@@ -90,6 +100,11 @@ interface MiningContextType {
   // Performance Stats History Export
   performanceHistory: PerformanceRecord[];
   clearPerformanceHistory: () => void;
+
+  // Toast Notifications System
+  toasts: AppToast[];
+  addToast: (toast: Omit<AppToast, 'id' | 'timestamp'>) => void;
+  removeToast: (id: string) => void;
 }
 
 const MiningContext = createContext<MiningContextType | undefined>(undefined);
@@ -138,6 +153,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('fast_miner_mine_all_coins', allTrue ? 'true' : 'false');
       
       const enabled = updated[crypto];
+      playSound('toggle');
+      speakVoice(enabled ? `${crypto} core activated.` : `${crypto} core offline.`);
       setNotification(enabled ? `🟢 ${crypto} mining core activated.` : `🔴 ${crypto} mining core deactivated.`);
       return updated;
     });
@@ -156,6 +173,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         DOGE: val,
       };
       localStorage.setItem('fast_miner_active_miners', JSON.stringify(updated));
+      playSound('toggle');
+      speakVoice(val ? "All multi cryptocurrency mining cores active." : "All mining cores deactivated.");
       setNotification(val ? `🚀 All multi-crypto mining cores booted!` : `⚠️ All multi-crypto cores offline.`);
       return updated;
     });
@@ -169,7 +188,70 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setIsClusterAutoMining = (val: boolean) => {
     setIsClusterAutoMiningState(val);
     localStorage.setItem('fast_miner_cluster_auto', val ? 'true' : 'false');
+    speakVoice(val ? "Auto mining engine engaged." : "Auto mining system on standby.");
     setNotification(val ? '⚡ Cloud Integration Established! All mining computing machines are synced and auto-mining at maximum efficiency' : '⚠️ Cluster Standby. Auto-mining machines decoupled from central clock.');
+  };
+
+  const [isSystemOn, setIsSystemOnState] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_system_on') !== 'false';
+  });
+
+  const setIsSystemOn = (val: boolean) => {
+    setIsSystemOnState(val);
+    localStorage.setItem('fast_miner_system_on', val ? 'true' : 'false');
+    if (!val) {
+      playSound('shutdown');
+      speakVoice("Emergency core shutdown initiated. Coolant systems venting.");
+      setIsClusterAutoMiningState(false);
+      tempRef.current = 24.0;
+      isThrottledRef.current = false;
+      setStats(prev => ({ ...prev, temperature: 24.0, hashRate: 0, powerDraw: 0, efficiency: 0, throttled: false }));
+      setNotification("POWER STATUS: EMERGENCY SHUTDOWN. All mining cores decoupled, thermal vents depressurized.");
+    } else {
+      playSound('startup');
+      speakVoice("Sovereign Mining Core online. Central mainframe connected.");
+      setIsClusterAutoMiningState(true);
+      setNotification("POWER STATUS: ONLINE. Decentralized fast-hash mainframes initialized and active.");
+    }
+  };
+
+  // --- Master Sound Control ---
+  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_sound_enabled') !== 'false';
+  });
+
+  const setSoundEnabled = (val: boolean) => {
+    setSoundEnabledState(val);
+    localStorage.setItem('fast_miner_sound_enabled', val ? 'true' : 'false');
+  };
+
+  const [voicePromptsEnabled, setVoicePromptsEnabledState] = useState<boolean>(() => {
+    return localStorage.getItem('fast_miner_voice_enabled') !== 'false';
+  });
+
+  const setVoicePromptsEnabled = (val: boolean) => {
+    setVoicePromptsEnabledState(val);
+    localStorage.setItem('fast_miner_voice_enabled', val ? 'true' : 'false');
+    if (val) {
+      speakVoice("AI vocal assistant prompts activated.");
+    }
+  };
+
+  // --- Toast Notifications System ---
+  const [toasts, setToasts] = useState<AppToast[]>([]);
+
+  const addToast = (toast: Omit<AppToast, 'id' | 'timestamp'>) => {
+    const id = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newToast: AppToast = {
+      ...toast,
+      id,
+      timestamp: Date.now()
+    };
+    setToasts(prev => [newToast, ...prev].slice(0, 5)); // Keep max 5 toasts for clean visual layouts
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
   };
 
   // --- Dynamic Cooling Profile ---
@@ -799,7 +881,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     title: string,
     amount: string,
     recipient: string,
-    status: UserTransaction['status'] = 'CONFIRMED'
+    status: UserTransaction['status'] = 'CONFIRMED',
+    overrideRef?: string
   ): UserTransaction => {
     const characters = '0123456789ABCDEF';
     let blockchainHash = '0x';
@@ -807,8 +890,20 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       blockchainHash += characters.charAt(Math.floor(Math.random() * characters.length));
     }
 
+    const prefixes: Record<string, string> = {
+      'COIN_SELL': 'REF-SWAP',
+      'UPGRADE_BUY': 'REF-UPG',
+      'BOOSTER_ACTIVATE': 'REF-BST',
+      'WITHDRAWAL': 'REF-DSP',
+      'CUSTOM_GENERATED': 'REF-TXT'
+    };
+    const prefix = prefixes[type] || 'REF-TX';
+    const randSegment = Math.floor(100000 + Math.random() * 900000);
+    const referenceNumber = overrideRef || `${prefix}-${randSegment}`;
+
     const newTx: UserTransaction = {
       id: `tx-user-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      referenceNumber,
       type,
       title,
       amount,
@@ -820,6 +915,68 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setUserTransactions(prev => [newTx, ...prev]);
     return newTx;
+  };
+
+  const sendSovereignMail = async (subject: string, bodyText: string, recipientEmail?: string) => {
+    const targetEmail = recipientEmail || user?.email || 'operator@hashsovereign.net';
+    if (!targetEmail) return;
+
+    const prefix = subject.includes('Delivery') ? '🎁' : '⚡';
+    const isGCSell = subject.includes('Voucher') || subject.includes('Gift');
+    const sender = isGCSell 
+      ? 'Alpha LLC Miner Merchant <merchant@hashsovereign.net>'
+      : 'Alpha Sovereign Clearing <clearing@hashsovereign.net>';
+
+    const newEmail = {
+      id: `mock_mail_sec_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`,
+      subject: `${prefix} ${subject}`,
+      from: sender,
+      snippet: bodyText.split('\n')[0] || subject,
+      body: bodyText,
+      date: new Date().toLocaleString()
+    };
+
+    // Save to local sandbox simulated mail inbox
+    const savedEmails = localStorage.getItem('hash_sovereign_mock_emails');
+    let emailArray = [];
+    if (savedEmails) {
+      try { emailArray = JSON.parse(savedEmails); } catch(e) {}
+    }
+    emailArray = [newEmail, ...emailArray];
+    localStorage.setItem('hash_sovereign_mock_emails', JSON.stringify(emailArray));
+
+    // Try live dispatch with Google OAuth token if active
+    try {
+      const { getAccessToken: fetchToken } = await import('../firebase');
+      const token = await fetchToken();
+      if (token) {
+        const messageContent = [
+          `To: ${targetEmail}`,
+          'Content-Type: text/plain; charset=utf-8',
+          'MIME-Version: 1.0',
+          `Subject: ${prefix} ${subject}`,
+          '',
+          bodyText,
+        ].join('\n');
+
+        const encodedMessage = btoa(unescape(encodeURIComponent(messageContent)))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ raw: encodedMessage })
+        });
+        console.log(`Live Authenticated Google Workspace Dispatch for: "${subject}" sent.`);
+      }
+    } catch (err) {
+      console.warn('Real Workspace/Gmail API token send skipped (sandbox or unauthenticated):', err);
+    }
   };
 
   // --- Performance Stats History Engine ---
@@ -995,6 +1152,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     setDailyReward(updated);
     localStorage.setItem('fast_miner_daily_reward', JSON.stringify(updated));
+    playSound('booster');
+    speakVoice(`Compensation claimed successfully. Daily reward level ${nextStreak} activated.`);
     setNotification(`Day ${nextStreak} Login Claimed: You got ${rewardMsg}`);
     
     return { success: true, message: `Day ${nextStreak} reward claimed!`, streak: nextStreak };
@@ -1027,7 +1186,38 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         localStorage.setItem('fast_miner_booster_inventory', JSON.stringify(updated));
         return updated;
       });
-      setNotification(`Item Purchased: Unlocked 1x ${boosterType === 'permanent' ? 'Silicon Core Purity (Permanent Boost)' : boosterType === 'overclock' ? 'Overclock Serum' : boosterType === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray'} in inventory!`);
+      playSound('toggle');
+      
+      const boosterName = boosterType === 'permanent' ? 'Silicon Core Purity (Permanent Boost)' : boosterType === 'overclock' ? 'Overclock Serum' : boosterType === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray';
+      const loggedTx = logUserTransaction(
+        'UPGRADE_BUY', 
+        `Buy Booster: ${boosterName}`, 
+        `${cost} HSC`, 
+        'Booster Inventory System'
+      );
+      
+      sendSovereignMail(
+        `Booster Acquired: ${boosterName} Enroute`,
+        `====================================================
+ALPHA MARKETPLACE - ASSET TRANSACTION RECORD
+====================================================
+Order Status: COMPLETED
+Reference Number: ${loggedTx.referenceNumber || 'N/A'}
+Acquisition: 1x ${boosterName}
+Cost: ${cost} HSC Coins
+Timestamp: ${new Date().toLocaleString()}
+Recipient Node: ${user?.email || 'Sovereign Core'}
+
+Booster Details:
+----------------------------------------------------
+The booster item has been successfully added to your secure hardware inventory. You can trigger this booster at any moment from the main dashboard to modify hash rates, energy cooling, or news sentiment.
+====================================================
+Alpha Sovereign Trade Registry
+ops@hashsovereign.net`
+      );
+
+      setNotification(`Item Purchased: Unlocked 1x ${boosterName} in inventory!`);
+      speakVoice(`Booster purchase authorized. One unit of ${boosterName} received.`);
       return { success: true, message: 'Booster purchased!' };
     } else {
       return { success: false, message: `Insufficient HSC. Requires ${cost} HSC but you have ${coins.toFixed(4)} HSC.` };
@@ -1045,16 +1235,56 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return updated;
       });
       
+      const bstName = boosterType === 'overclock' ? 'Overclock Serum' : boosterType === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray';
+      const bstMult = boosterType === 'overclock' ? 1.5 : boosterType === 'cryo' ? 0.3 : 1.25;
+
       const newBooster: ActiveBooster = {
         id: `booster_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         type: boosterType,
-        name: boosterType === 'overclock' ? 'Overclock Serum' : boosterType === 'cryo' ? 'Cryo-Freeze Capsule' : 'Bullish News Spray',
+        name: bstName,
         duration: 60,
         remaining: 60,
-        multiplier: boosterType === 'overclock' ? 1.5 : boosterType === 'cryo' ? 0.3 : 1.25
+        multiplier: bstMult
       };
       
       setActiveBoosters(prev => [...prev, newBooster]);
+      playSound('booster');
+
+      if (boosterType === 'overclock') {
+        speakVoice("Swell warning. Core overclock injection sequence initiated. Processors hashing at maximum load.");
+      } else if (boosterType === 'cryo') {
+        speakVoice("Coolant venting. Cryo freeze capsule depressurized. Reactor core temperature dropping.");
+      } else {
+        speakVoice("News feed booster active. Transmitting high density bullish sentiment.");
+      }
+
+      const loggedTx = logUserTransaction(
+        'BOOSTER_ACTIVATE', 
+        `Activate Booster: ${bstName}`, 
+        `1x Capsule`, 
+        'Rig Cooling & Hashing Chambers'
+      );
+
+      sendSovereignMail(
+        `Reactor Boost Activated: ${bstName} On-Line`,
+        `====================================================
+ALPHA HARDWARE SYSTEMS - REACTOR EMISSION LOG
+====================================================
+Log Event: ACTIVE BOOST INJECTED
+Reference Number: ${loggedTx.referenceNumber || 'N/A'}
+Booster Type: ${bstName}
+Multiplier: ${bstMult}x Effect
+Duration: 60 Seconds Operational Venting
+Timestamp: ${new Date().toLocaleString()}
+
+Operational Alert:
+----------------------------------------------------
+Cores have been overclocked or cryogenic coolers initialized. Monitor system thermals to ensure peak efficiency.
+====================================================
+Alpha Sovereign Reactor Management
+ops@hashsovereign.net`
+      );
+
       setNotification(`Active Boost: ${newBooster.name} successfully activated for 60 seconds!`);
       return { success: true, message: 'Booster activated!' };
     } else {
@@ -1111,6 +1341,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     stats,
     activeMiners,
     mineAllCoins,
+    isSystemOn,
   });
 
   // Keep the ref updated on every render
@@ -1130,8 +1361,9 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       stats,
       activeMiners,
       mineAllCoins,
+      isSystemOn,
     };
-  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats, activeMiners, mineAllCoins]);
+  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats, activeMiners, mineAllCoins, isSystemOn]);
 
   // Auto-save fast-changing variables periodically (every 3 seconds) to prevent heavy main thread blocking
   useEffect(() => {
@@ -1300,7 +1532,21 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Fast mining is responsive with a 100ms interval
   useEffect(() => {
     const mineInterval = setInterval(() => {
-      const { upgrades: curUpgrades, prices: curPrices, activeCrypto: curCrypto, activeMiners: curActiveMiners } = miningStateRef.current;
+      const { upgrades: curUpgrades, prices: curPrices, activeCrypto: curCrypto, activeMiners: curActiveMiners, isSystemOn: curSystemOn } = miningStateRef.current;
+      
+      if (!curSystemOn) {
+        tempRef.current = 24.0;
+        setStats({
+          hashRate: 0,
+          efficiency: 0,
+          powerDraw: 0,
+          temperature: 24.0,
+          thermalCap: 95.0,
+          throttled: false,
+        });
+        return;
+      }
+
       const { hashrate, powerDraw, heatGenerated, coolingPower, efficiency } = calculateRigMetrics();
 
       // 1. Temperature simulator logic
@@ -1446,7 +1692,10 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (isSimDisabled) {
         return; // Halt system simulation threads to log real database syncs
       }
-      const { activeCrypto: curCrypto, isClusterAutoMining: curCluster, prices: curPrices } = miningStateRef.current;
+      const { activeCrypto: curCrypto, isClusterAutoMining: curCluster, prices: curPrices, isSystemOn: curSystemOn } = miningStateRef.current;
+      if (!curSystemOn) {
+        return; // Halt transaction simulation during shutdown
+      }
       const cryptos = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'];
       const randomCrypto = cryptos[Math.floor(Math.random() * cryptos.length)];
       
@@ -1601,6 +1850,11 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Active Click mining payout (tactile satisfying clicks)
   const mineClick = () => {
+    if (!isSystemOn) {
+      setNotification("⚠️ Operations Offline. Turn system power ON to activate mining reactor!");
+      return;
+    }
+    playSound('click');
     let clickReward = 0.001; // basic reward
     
     // Boost click with hotplates booster
@@ -1704,11 +1958,40 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const nextLevel = item.level + 1;
         const nextCost = Math.round(item.baseCost * Math.pow(item.costMultiplier, nextLevel));
 
-        logUserTransaction(
+        speakVoice(`Mainframe stacked. Upgrading core ${item.name} to level ${nextLevel}.`);
+
+        const loggedTx = logUserTransaction(
           'UPGRADE_BUY',
           `Upgrade hardware: ${item.name} to Lvl ${nextLevel}`,
           `$${item.cost.toLocaleString()}`,
           'Hardware Inventory System'
+        );
+
+        sendSovereignMail(
+          `Hardware Dispatch: ${item.name} Level ${nextLevel} Cleared`,
+          `====================================================
+ALPHA SOVEREIGN MANUFACTURING - SYSTEM DISPATCH
+====================================================
+Order Status: ASSEMBLED AND RACKED
+Reference Number: ${loggedTx.referenceNumber || 'N/A'}
+Asset Category: Hardware Mainframe Upgrade
+Timestamp: ${new Date().toLocaleString()}
+Device Owner: ${user?.email || 'System Network Operator'}
+
+Receipt Specifications:
+----------------------------------------------------
+Target Rig Core: ${item.name}
+Target Tier: Level ${nextLevel} Setup
+Acquisition Cost: $${item.cost.toLocaleString()} USD
+
+Rig Efficiency Impact:
+----------------------------------------------------
+Power Threshold: Upgraded
+Decentralized Hash Power Capacity: Increased
+====================================================
+This is an authenticated, cryptographically signed hardware receipt.
+Alpha Sovereign Clearing Network
+ops@hashsovereign.net`
         );
 
         const updated = [...curUpgrades];
@@ -1732,12 +2015,44 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const nextUsd = usd + gainedUSD;
       setCoins(nextCoins);
       setUsd(nextUsd);
+      playSound('trade');
+      speakVoice(`Trade executed. Sold ${amount.toFixed(3)} ${activeCrypto} coins for ${gainedUSD.toFixed(2)} dollars.`);
 
-      logUserTransaction(
+      const loggedTx = logUserTransaction(
         'COIN_SELL',
         `Sold ${amount.toFixed(4)} ${activeCrypto} Coins`,
         formatVal(gainedUSD),
         'DEX Liquidity Pool'
+      );
+
+      addToast({
+        type: 'success',
+        title: 'Trade Finalized',
+        message: `Successfully sold ${amount.toFixed(4)} ${activeCrypto} for ${formatVal(gainedUSD)}`,
+        referenceNumber: loggedTx.referenceNumber
+      });
+
+      sendSovereignMail(
+        `Trade Settlement: Sold ${amount.toFixed(4)} ${activeCrypto} Cleared`,
+        `====================================================
+ALPHA SOVEREIGN DEX LIQUIDITY EXCHANGE
+====================================================
+Trade Status: SETTLED & ARCHIVED
+Reference Number: ${loggedTx.referenceNumber || 'N/A'}
+Liquidity Pool: ${activeCrypto} / USD Automated Clearing
+Timestamp: ${new Date().toLocaleString()}
+Account Owner: ${user?.email || 'Anonymous Operator'}
+
+Exchange Slip:
+----------------------------------------------------
+Sold Volume: ${amount.toFixed(4)} ${activeCrypto}
+Market Clearing Price: $${marketPrice.toFixed(2)} USD per Coin
+Settled Proceeds: $${gainedUSD.toFixed(2)} USD
+Recipient: Local Account USD Balance (Primary Asset Ledger)
+====================================================
+This trade has been recorded and verified by consensus nodes.
+Alpha Sovereign Liquidity Exchange
+trading@hashsovereign.net`
       );
 
       if (user && !user.uid.startsWith('user_')) {
@@ -1753,17 +2068,50 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const sellAllCoins = async () => {
     if (coins > 0) {
+      const amount = coins;
       const gainedUSD = coins * marketPrice;
       const nextCoins = 0;
       const nextUsd = usd + gainedUSD;
       setCoins(nextCoins);
       setUsd(nextUsd);
+      playSound('trade');
+      speakVoice(`Trade executed. Exchanged all remaining ${amount.toFixed(3)} ${activeCrypto} coins for ${gainedUSD.toFixed(2)} dollars.`);
 
-      logUserTransaction(
+      const loggedTx = logUserTransaction(
         'COIN_SELL',
-        `Sold All ${coins.toFixed(4)} ${activeCrypto} Coins`,
+        `Sold All ${amount.toFixed(4)} ${activeCrypto} Coins`,
         formatVal(gainedUSD),
         'DEX Liquidity Pool'
+      );
+
+      addToast({
+        type: 'success',
+        title: 'Trade Finalized',
+        message: `Successfully sold ${amount.toFixed(4)} ${activeCrypto} for ${formatVal(gainedUSD)}`,
+        referenceNumber: loggedTx.referenceNumber
+      });
+
+      sendSovereignMail(
+        `Trade Settlement: Sold All ${amount.toFixed(4)} ${activeCrypto} Cleared`,
+        `====================================================
+ALPHA SOVEREIGN DEX LIQUIDITY EXCHANGE
+====================================================
+Trade Status: SETTLED & ARCHIVED
+Reference Number: ${loggedTx.referenceNumber || 'N/A'}
+Liquidity Pool: ${activeCrypto} / USD Automated Clearing
+Timestamp: ${new Date().toLocaleString()}
+Account Owner: ${user?.email || 'Anonymous Operator'}
+
+Exchange Slip:
+----------------------------------------------------
+Sold Volume: ${amount.toFixed(4)} ${activeCrypto}
+Market Clearing Price: $${marketPrice.toFixed(2)} USD per Coin
+Settled Proceeds: $${gainedUSD.toFixed(2)} USD
+Recipient: Local Account USD Balance (Primary Asset Ledger)
+====================================================
+This trade has been recorded and verified by consensus nodes.
+Alpha Sovereign Liquidity Exchange
+trading@hashsovereign.net`
       );
 
       if (user && !user.uid.startsWith('user_')) {
@@ -1949,9 +2297,11 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const blockNum = Math.floor(1024300 + Math.random() * 5000);
+      const payoutRef = `REF-DSP-${Math.floor(100000 + Math.random() * 900000)}`;
 
       const newTx: PayoutTransaction = {
         id: `tx_${Date.now()}`,
+        referenceNumber: payoutRef,
         amountCoin: Number(hscEquiv.toFixed(4)),
         amountUSD: Number(usdAmount.toFixed(2)),
         address,
@@ -1980,7 +2330,43 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         `Withdrawal request: ${usdAmount} USD via ${gateway.toUpperCase()}${holdForBatching ? ' (Mempool Held)' : ''}`,
         `$${usdAmount.toLocaleString()}`,
         address,
-        'PENDING'
+        'PENDING',
+        payoutRef
+      );
+
+      addToast({
+        type: 'success',
+        title: 'Withdrawal Initialized',
+        message: `Requested payment of $${usdAmount.toFixed(2)} USD via ${gateway.toUpperCase()}`,
+        referenceNumber: payoutRef
+      });
+
+      speakVoice(`Withdrawal request of ${usdAmount.toFixed(2)} dollars initiated. Dispatching transaction via ${gateway.toUpperCase()}.`);
+
+      sendSovereignMail(
+        `Withdrawal Dispatched: ${usdAmount} USD Clear Log`,
+        `====================================================
+ALPHA SOVEREIGN SETTLEMENT PIPELINE - DISPATCH
+====================================================
+Settlement Status: MEMPOOL QUEUED / ACTIVE HANDSHAKE
+Reference Number: ${payoutRef}
+Pipeline Gateway: ${gateway.toUpperCase()} (${gatewayDetails || 'Default Routing'})
+Target Destination ID: ${address}
+Gas / Network Fees: $${(usdAmount * 0.015).toFixed(2)} USD
+Consensus Block Height: #${blockNum}
+Timestamp: ${new Date().toLocaleString()}
+
+Payout Details:
+----------------------------------------------------
+Settled Amount: $${usdAmount.toFixed(2)} USD (approx. ${hscEquiv.toFixed(4)} HSC)
+
+Sovereign Secure Audit Notice:
+----------------------------------------------------
+All external settlement pipelines carry automatic AML verification audits. Go to the Payouts tab to finalize compliance signatures, clear validation holds, and avoid processing freezes.
+====================================================
+This transaction is secured using SHA-256 decentralized block hash.
+Alpha Sovereign Clearing Network
+payouts@hashsovereign.net`
       );
 
       if (holdForBatching) {
@@ -2102,6 +2488,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       
       setNotification(`External transfer submitted! ${cryptoAmount.toFixed(crypto === 'DOGE' ? 1 : 4)} ${crypto} successfully dispatched.`);
+      speakVoice(`Transfer of ${cryptoAmount.toFixed(crypto === 'DOGE' ? 0 : 2)} ${crypto} initialized. Transaction dispatched to secure block pool.`);
       
       return { success: true, message: 'Cryptocurrency transfer successful!', tx: newTx };
     } else {
@@ -2147,9 +2534,11 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       txHash += characters.charAt(Math.floor(Math.random() * characters.length));
     }
     const blockNum = Math.floor(6305000 + Math.random() * 250000);
+    const transferRef = `REF-DSP-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const newTx: PayoutTransaction = {
       id: `tx_transfer_${Date.now()}`,
+      referenceNumber: transferRef,
       amountCoin: Number(amount.toFixed(crypto === 'DOGE' ? 2 : 5)),
       amountUSD: Number(usdValue.toFixed(2)),
       address: recipientAddress,
@@ -2180,7 +2569,39 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       `Asset Transfer initiated: ${amount.toFixed(4)} ${crypto} P2P`,
       `${amount.toFixed(4)} ${crypto} (≈ $${usdValue.toLocaleString()})`,
       recipientAddress,
-      'PENDING'
+      'PENDING',
+      transferRef
+    );
+
+    addToast({
+      type: 'success',
+      title: 'P2P Transfer Dispatched',
+      message: `Dispatched ${amount.toFixed(4)} ${crypto} to ${name || recipientAddress.slice(0, 10)}...`,
+      referenceNumber: transferRef
+    });
+
+    sendSovereignMail(
+      `P2P Transfer Dispatched: ${amount.toFixed(4)} ${crypto} Sent`,
+      `====================================================
+ALPHA SOVEREIGN P2P BLOCKCHAIN DISPATCH
+====================================================
+Dispatch Status: DISPATCHED / AWAITING REACH-BACK
+Reference Number: ${transferRef}
+Cryptocurrency: ${crypto}
+Target Recipient Node: ${recipientAddress}
+Recipient Alias: ${name || 'Peer Cryptographic Node'}
+Network Fee: ${feeAmount.toFixed(5)} ${crypto}
+Consensus Block Height: #${blockNum}
+Timestamp: ${new Date().toLocaleString()}
+
+Transfer Slip:
+----------------------------------------------------
+Transferred Amount: ${amount.toFixed(4)} ${crypto}
+USD Equivalent: $${usdValue.toFixed(2)} USD
+====================================================
+This P2P transfer is recorded in the blockchain ledger.
+Alpha Sovereign Clearing Network
+ops@hashsovereign.net`
     );
 
     // Sync to Firestore if user profile exists
@@ -2196,6 +2617,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     setNotification(`P2P Transfer of ${amount.toFixed(4)} ${crypto} dispatched! Awaiting recipient handshake...`);
+    playSound('trade');
     return { success: true, message: 'Transfer dispatched successfully!', tx: newTx };
   };
 
@@ -2551,11 +2973,266 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const emergencyShutdown = () => {
-    setIsClusterAutoMining(false);
-    tempRef.current = 32.0;
-    isThrottledRef.current = false;
-    setStats(prev => ({ ...prev, temperature: 32.0, throttled: false }));
-    setNotification("EMERGENCY SHUTDOWN INITIATED. Cluster halted, thermal build-up cleared.");
+    setIsSystemOnState(prev => {
+      const next = !prev;
+      localStorage.setItem('fast_miner_system_on', next ? 'true' : 'false');
+      if (!next) {
+        playSound('shutdown');
+        setIsClusterAutoMiningState(false);
+        tempRef.current = 24.0;
+        isThrottledRef.current = false;
+        setStats(prevStats => ({ ...prevStats, temperature: 24.0, hashRate: 0, powerDraw: 0, efficiency: 0, throttled: false }));
+        setNotification("POWER STATUS: EMERGENCY SHUTDOWN. All mining cores decoupled, thermal vents depressurized.");
+      } else {
+        playSound('startup');
+        setIsClusterAutoMiningState(true);
+        setNotification("POWER STATUS: ONLINE. Decentralized fast-hash mainframes initialized and active.");
+      }
+      return next;
+    });
+  };
+
+  const buyGiftCards = (cart: Array<{ brand: string; value: number; qty: number }>, deliverEmail: string) => {
+    if (!deliverEmail || !deliverEmail.includes('@')) {
+      return { success: false, message: 'Please provide a valid recipient email address.' };
+    }
+
+    const totalCost = cart.reduce((acc, item) => acc + (item.value * item.qty), 0);
+    if (totalCost <= 0) {
+      return { success: false, message: 'Please select at least one gift card.' };
+    }
+
+    // Calculate total layout balance
+    const currentTotalEarnings = usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+      const actualAmt = crypto === activeCrypto ? coins : amt;
+      const price = prices[crypto] || 0;
+      return acc + (actualAmt * price);
+    }, 0);
+
+    if (currentTotalEarnings < totalCost) {
+      return { success: false, message: `Insufficient total account valuation. You need $${totalCost.toFixed(2)} USD to check out.` };
+    }
+
+    // Deduct funds
+    let remaining = totalCost;
+    let nextUsd = usd;
+    let nextCoins = coins;
+    let nextBalances = { ...balances };
+
+    if (nextUsd >= remaining) {
+      nextUsd -= remaining;
+      remaining = 0;
+    } else {
+      remaining -= nextUsd;
+      nextUsd = 0;
+    }
+
+    const activeCryptoPrice = prices[activeCrypto] || 142.50;
+
+    if (remaining > 0) {
+      const activeCryptoValue = nextCoins * activeCryptoPrice;
+      if (activeCryptoValue >= remaining) {
+        const coinsToDeduct = remaining / activeCryptoPrice;
+        nextCoins = Math.max(0, nextCoins - coinsToDeduct);
+        remaining = 0;
+      } else {
+        remaining -= activeCryptoValue;
+        nextCoins = 0;
+        nextBalances[activeCrypto] = 0;
+        const cryptos = Object.keys(nextBalances);
+        for (const crypto of cryptos) {
+          if (remaining <= 0) break;
+          const price = prices[crypto] || 0;
+          if (price <= 0) continue;
+          const val = nextBalances[crypto] * price;
+          if (val >= remaining) {
+            nextBalances[crypto] -= remaining / price;
+            remaining = 0;
+          } else {
+            remaining -= val;
+            nextBalances[crypto] = 0;
+          }
+        }
+      }
+    }
+
+    setUsd(nextUsd);
+    setCoins(nextCoins);
+    setBalances(nextBalances);
+    localStorage.setItem('fast_miner_balances', JSON.stringify(nextBalances));
+
+    // Generate gift card details and codes
+    const formattedCards = cart.map(item => {
+      const codes = [];
+      for (let i = 0; i < item.qty; i++) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = `${item.brand.substring(0, 3).toUpperCase()}-`;
+        for (let j = 0; j < 4; j++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        code += '-';
+        for (let j = 0; j < 4; j++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        code += '-';
+        for (let j = 0; j < 4; j++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        codes.push(code);
+      }
+      return {
+        brand: item.brand,
+        value: item.value,
+        qty: item.qty,
+        codes
+      };
+    });
+
+    const itemsSummary = formattedCards.map(c => `${c.qty}x ${c.brand} Gift Card ($${c.value} USD each)`).join(', ');
+    const codesText = formattedCards.map(c => `🔑 ${c.brand} ($${c.value}):\n` + c.codes.map(code => `   • Code: ${code}`).join('\n')).join('\n\n');
+
+    const blockNum = Math.floor(1024300 + Math.random() * 5000);
+    const characters = '0123456789abcdef';
+    let txHash = '0x';
+    for (let i = 0; i < 48; i++) {
+       txHash += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+
+    const randGCRef = `REF-GIFT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const newTx: PayoutTransaction = {
+      id: `tx_${Date.now()}`,
+      referenceNumber: randGCRef,
+      amountCoin: Number((totalCost / activeCryptoPrice).toFixed(4)),
+      amountUSD: Number(totalCost.toFixed(2)),
+      address: deliverEmail,
+      status: 'confirmed',
+      timestamp: Date.now(),
+      txHash,
+      fee: 0,
+      blockNumber: blockNum,
+      type: 'giftcard' as any,
+      crypto: activeCrypto,
+      gateway: 'wallet',
+      gatewayDetails: itemsSummary
+    };
+
+    setPayouts(prev => {
+      const updated = [newTx, ...prev];
+      localStorage.setItem('fast_miner_payouts', JSON.stringify(updated));
+      return updated;
+    });
+
+    logUserTransaction(
+      'WITHDRAWAL',
+      `Bought Gift Cards: ${itemsSummary}`,
+      `$${totalCost.toFixed(2)}`,
+      deliverEmail,
+      'CONFIRMED',
+      randGCRef
+    );
+
+    addToast({
+      type: 'success',
+      title: 'Merchant Order Complete',
+      message: `Successfully purchased: ${itemsSummary}`,
+      referenceNumber: randGCRef
+    });
+
+    const primaryBrand = formattedCards[0]?.brand || "vouchers";
+    speakVoice(`Merchant order cleared. Successfully dispatched ${primaryBrand} voucher valued at ${totalCost.toFixed(2)} dollars.`);
+
+    if (user && !user.uid.startsWith('user_')) {
+      import('../firebaseSync').then(async ({ savePayoutTransaction, saveUserProfile }) => {
+        try {
+          await savePayoutTransaction(user.uid, newTx);
+          await saveUserProfile(user.uid, user, nextCoins, nextUsd, lifetimeMined);
+        } catch (err) {
+          console.error('Error syncing gift card payout to Firestore:', err);
+        }
+      });
+    }
+
+    // Mock Inbox delivery
+    const deliveryBody = `====================================================
+ALPHA GLOBAL MERCHANDISE - TRANSACTION RECORD
+====================================================
+Order Status: AUTHENTICATED & DELIVERED
+Reference Number: ${randGCRef}
+Merchant Authority: Alpha LLC (Store Gateway Node)
+Authentication Status: SSL/OAuth Verified Secured Terminal
+Total Purchase Value: $${totalCost.toFixed(2)} USD
+Settlement Node: block #${blockNum}
+Timestamp: ${new Date().toLocaleString()}
+Delivery Recipient: ${deliverEmail}
+
+Purchased Items Summary:
+----------------------------------------------------
+${itemsSummary}
+
+Voucher Claims Enclosed:
+----------------------------------------------------
+${codesText}
+
+Terms of Service:
+These voucher codes can be redeemed directly on the respective platforms. Once dispatched, digital gift card sales are final and secured.
+
+Best Regards,
+Alpha Sovereign Merchant Support
+clearing@hashsovereign.net`;
+
+    const newEmail = {
+      id: `mock_mail_gc_${Date.now()}`,
+      subject: `🎁 Delivery: ${itemsSummary} Dispatched`,
+      from: 'Alpha LLC Miner Store <store@hashsovereign.net>',
+      snippet: `Your purchased gift vouchers ($${totalCost.toFixed(2)} USD total) have been dispatched to ${deliverEmail}. Codes enclosed.`,
+      body: deliveryBody,
+      date: new Date().toLocaleString()
+    };
+
+    const savedEmails = localStorage.getItem('hash_sovereign_mock_emails');
+    let emailArray = [];
+    if (savedEmails) {
+      try { emailArray = JSON.parse(savedEmails); } catch(e) {}
+    }
+    emailArray = [newEmail, ...emailArray];
+    localStorage.setItem('hash_sovereign_mock_emails', JSON.stringify(emailArray));
+
+    // Send sovereign mail notification
+    sendSovereignMail(`🎁 Delivery: ${itemsSummary} Dispatched`, deliveryBody, deliverEmail);
+
+    // Try real send if token available
+    import('../firebase').then(({ getAccessToken }) => {
+      getAccessToken().then(async token => {
+        if (token) {
+          try {
+            const messageContent = [
+              `To: ${deliverEmail}`,
+              'Content-Type: text/plain; charset=utf-8',
+              'MIME-Version: 1.0',
+              `Subject: Delivery: ${itemsSummary} Dispatched`,
+              '',
+              deliveryBody,
+            ].join('\n');
+
+            const encodedMessage = btoa(unescape(encodeURIComponent(messageContent)))
+              .replace(/\+/g, '-')
+              .replace(/\//g, '_')
+              .replace(/=+$/, '');
+
+            await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ raw: encodedMessage })
+            });
+            console.log('Real Gmail delivery dispatched successfully for gift cards!');
+          } catch (err) {
+            console.warn('Real email dispatch failed (scopes or connection expired):', err);
+          }
+        }
+      });
+    });
+
+    setNotification(`🎁 Purchased ${cart.reduce((s,i)=>s+i.qty, 0)} gift card items! Deliveries dispatched to ${deliverEmail} (Cloud Mail/Inbox).`);
+    playSound('trade');
+    return { success: true, message: `Successfully purchased! Codes delivered to recipient: ${deliverEmail}. Open the Cloud Mail tab to view.` };
   };
 
   const emergencyCooling = () => {
@@ -2564,6 +3241,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       tempRef.current = 32.0;
       isThrottledRef.current = false;
       setStats(prev => ({ ...prev, temperature: 32.0, throttled: false }));
+      playSound('toggle');
       setNotification("EMERGENCY COOLING ACTIVATED. -$25.00 | Thermals Reset.");
       return true;
     }
@@ -2712,6 +3390,22 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Performance Stats Export
       performanceHistory,
       clearPerformanceHistory,
+
+      // System power toggle & Gift Cards store
+      isSystemOn,
+      setIsSystemOn,
+      buyGiftCards,
+
+      // Master sound controls
+      soundEnabled,
+      setSoundEnabled,
+      voicePromptsEnabled,
+      setVoicePromptsEnabled,
+
+      // Toast Notifications System
+      toasts,
+      addToast,
+      removeToast,
     }}>
       {children}
     </MiningContext.Provider>

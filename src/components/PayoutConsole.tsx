@@ -1,9 +1,70 @@
 import React, { useState } from 'react';
 import { useMining } from '../context/MiningContext';
 import { PayoutTransaction } from '../types';
-import { Wallet, CheckCircle2, Loader2, ArrowUpRight, HelpCircle, AlertCircle, Clock, ExternalLink, ShieldCheck, X, Landmark, Send, Coins, Layers, Cpu, Activity, ChevronDown, ChevronUp, Copy, Check, Smartphone, Chrome, Users, ArrowLeftRight, RefreshCw } from 'lucide-react';
+import { Wallet, CheckCircle2, Loader2, ArrowUpRight, HelpCircle, AlertCircle, Clock, ExternalLink, ShieldCheck, X, Landmark, Send, Coins, Layers, Cpu, Activity, ChevronDown, ChevronUp, Copy, Check, Smartphone, Chrome, Users, ArrowLeftRight, RefreshCw, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+
+const AVAILABLE_GIFT_CARDS = [
+  { id: 'amz_10', brand: 'Amazon', value: 10, color: 'from-amber-600 to-yellow-500' },
+  { id: 'amz_25', brand: 'Amazon', value: 25, color: 'from-amber-600 to-yellow-500' },
+  { id: 'amz_50', brand: 'Amazon', value: 50, color: 'from-amber-600 to-yellow-500' },
+  { id: 'amz_100', brand: 'Amazon', value: 100, color: 'from-amber-600 to-yellow-500' },
+  { id: 'app_15', brand: 'Apple', value: 15, color: 'from-gray-700 to-gray-900' },
+  { id: 'app_50', brand: 'Apple', value: 50, color: 'from-gray-700 to-gray-900' },
+  { id: 'app_100', brand: 'Apple', value: 100, color: 'from-gray-700 to-gray-900' },
+  { id: 'play_10', brand: 'Google Play', value: 10, color: 'from-blue-600 to-teal-500' },
+  { id: 'play_25', brand: 'Google Play', value: 25, color: 'from-blue-600 to-teal-500' },
+  { id: 'play_50', brand: 'Google Play', value: 50, color: 'from-blue-600 to-teal-500' },
+  { id: 'steam_20', brand: 'Steam', value: 20, color: 'from-sky-700 to-indigo-900' },
+  { id: 'steam_50', brand: 'Steam', value: 50, color: 'from-sky-700 to-indigo-900' },
+  { id: 'steam_100', brand: 'Steam', value: 100, color: 'from-sky-700 to-indigo-900' },
+  { id: 'nflx_15', brand: 'Netflix', value: 15, color: 'from-red-650 to-rose-900' },
+  { id: 'nflx_30', brand: 'Netflix', value: 30, color: 'from-red-650 to-rose-900' },
+];
+
+const MERCHANTS_LIST = [
+  { name: 'Amazon', color: 'from-amber-600 to-yellow-500', api: 'api.clearance.amazon.com/v3', format: 'XXXX-XXXXXX-XXXX', desc: 'Secure retail clearance vouchers.' },
+  { name: 'Apple', color: 'from-slate-800 to-black', api: 'gateway.clearing.apple.com/v2', format: 'XXXXXXXXXXXXXXXX (16-char)', desc: 'Valid for Apple Store digital media & devices.' },
+  { name: 'Google Play', color: 'from-blue-600 to-teal-500', api: 'play-billing.googleapis.com/v4', format: 'XXXX-XXXX-XXXX-XXXX-XXXX', desc: 'Valid for Google Play apps & contents.' },
+  { name: 'Steam', color: 'from-sky-700 to-indigo-900', api: 'partner.steam-api.valvesoftware.com/clearance', format: 'XXXXX-XXXXX-XXXXX', desc: 'Direct PC gaming catalog credits.' },
+  { name: 'PlayStation Network', color: 'from-blue-700 to-indigo-800', api: 'api.playstation-network.sony.com/settle', format: 'XXXX-XXXX-XXXX', desc: 'PSN game catalog wallet loader.' },
+  { name: 'Xbox Live', color: 'from-green-600 to-emerald-800', api: 'billing.xbox-live.microsoft.com/v1', format: 'XXXXX-XXXXX-XXXXX', desc: 'Xbox games and Gamepasses.' },
+  { name: 'Nintendo eShop', color: 'from-red-650 to-rose-800', api: 'eshop.nintendo-net.com/api', format: 'XXXX-XXXX-XXXX-XXXX', desc: 'Nintendo Switch digital store funds.' },
+  { name: 'Spotify', color: 'from-emerald-600 to-green-500', api: 'partner-settle.spotify.com/v2', format: 'XXXX-XXXX-XXXX', desc: 'Premium music & podcast subscription.' },
+  { name: 'Netflix', color: 'from-red-700 to-red-950', api: 'clearing.netflix.com/v3', format: 'XXXX-XXXX-XXXX-XXXX', desc: 'Premium movies & series streaming subscription.' },
+  { name: 'eBay', color: 'from-blue-600 to-yellow-550', api: 'api.settlement.ebay.com/v1', format: 'XXXX-XXXX-XXXX-XXXX', desc: 'Global retail marketplace codes.' },
+  { name: 'Airbnb', color: 'from-rose-500 to-rose-700', api: 'billing.airbnb.com/v4', format: 'XXXX-XXXX-XXXX', desc: 'Direct travel/accommodations credit.' },
+  { name: 'Uber', color: 'from-gray-800 to-slate-950', api: 'settlements.uber-api.com/v1', format: 'XXXXX-XXXXX', desc: 'Uber rides and Uber Eats delivery funds.' },
+];
+
+const parseGiftCardDetails = (tx: any) => {
+  const text = tx.gatewayDetails || '';
+  let brand = 'Amazon';
+  let value = 50;
+
+  const mBrand = text.match(/1x\s+([^G\d]+?)\s+Gift/i) || text.match(/Bought\s+Gift\s+Cards:\s+1x\s+(\w+)/i) || text.match(/Bought\s+Gift\s+Cards:\s+([^\d]+?)\(\$/i);
+  if (mBrand) {
+    brand = mBrand[1].trim();
+  } else {
+    const searchVal = text.toLowerCase();
+    for (const m of MERCHANTS_LIST) {
+      if (searchVal.includes(m.name.toLowerCase())) {
+        brand = m.name;
+        break;
+      }
+    }
+  }
+
+  const mValue = text.match(/\$(\d+(\.\d+)?)/);
+  if (mValue) {
+    value = parseFloat(mValue[1]);
+  } else if (tx.amountUSD) {
+    value = tx.amountUSD;
+  }
+
+  return { brand, value };
+};
 
 export const PayoutConsole: React.FC = () => {
   const {
@@ -34,12 +95,139 @@ export const PayoutConsole: React.FC = () => {
     batchPayouts,
     initiateAssetTransfer,
     confirmAssetTransfer,
+    buyGiftCards,
   } = useMining();
 
   const [payoutInput, setPayoutInput] = useState<string>(payoutAddress);
   
-  // Tab controller: 'cash' vs 'crypto' vs 'transfer'
-  const [activeFormTab, setActiveFormTab] = useState<'cash' | 'crypto' | 'transfer'>('cash');
+  // Tab controller: 'cash' vs 'crypto' vs 'transfer' vs 'giftcard'
+  const [activeFormTab, setActiveFormTab] = useState<'cash' | 'crypto' | 'transfer' | 'giftcard'>('cash');
+
+  // Gift Card selection states
+  const [giftCart, setGiftCart] = useState<Record<string, number>>({});
+  const [giftEmail, setGiftEmail] = useState<string>(user?.email || '');
+
+  // Modern direct merchant states
+  const [merchantStoreMode, setMerchantStoreMode] = useState<'merchant_api' | 'catalog'>('merchant_api');
+  const [selectedMerchant, setSelectedMerchant] = useState<string>('Amazon');
+  const [customAmount, setCustomAmount] = useState<number>(50);
+  const [isPerformingMerchantApiHandshake, setIsPerformingMerchantApiHandshake] = useState<boolean>(false);
+  const [merchantHandshakeLogs, setMerchantHandshakeLogs] = useState<string[]>([]);
+  const [merchantHandshakeStep, setMerchantHandshakeStep] = useState<number>(0);
+
+  const handleDirectMerchantCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const normAmount = Number(customAmount);
+    if (!normAmount || isNaN(normAmount) || normAmount < 5 || normAmount > 1000) {
+      setErrorMsg('Merchant direct settlements limit ranges between $5.00 and $1000.00 USD.');
+      return;
+    }
+
+    if (!giftEmail || !giftEmail.includes('@')) {
+      setErrorMsg('Please enter a valid recipient email address for voucher delivery.');
+      return;
+    }
+
+    // Verify balance
+    const currentTotalEarnings = usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+      const actualAmt = crypto === activeCrypto ? coins : amt;
+      const price = prices[crypto] || 0;
+      return acc + (actualAmt * price);
+    }, 0);
+
+    if (currentTotalEarnings < normAmount) {
+      setErrorMsg(`Insufficient total account valuation. You need $${normAmount.toFixed(2)} USD to clear this voucher.`);
+      return;
+    }
+
+    // Start direct clearance handshake animation
+    setIsPerformingMerchantApiHandshake(true);
+    setMerchantHandshakeStep(0);
+    
+    const merchantObj = MERCHANTS_LIST.find(m => m.name === selectedMerchant) || MERCHANTS_LIST[0];
+    
+    const logs = [
+      `🔐 [0.0s] Initializing TLS handshake with ${merchantObj.name} Clearing Gateway: ${merchantObj.api}...`,
+      `📡 [0.5s] Establishing RSA SECURE-PIPE using TLS_AES_256_GCM_SHA384 (authenticated)...`,
+      `⛓️ [1.0s] Auditing account valuation balances on DEX Settlement pools... Checked.`,
+      `💰 [1.5s] Initiating coin deduction index block clearance for $${normAmount.toFixed(2)} USD... Approved.`,
+      `📦 [2.0s] Synchronizing secure keys & cryptographically signing ${selectedMerchant} e-voucher... Success.`,
+      `🔑 [2.5s] Injecting unique ledger reference block height. Dispatching voucher codes... Complete!`
+    ];
+
+    setMerchantHandshakeLogs([logs[0]]);
+
+    // Run multi-step log generation timers
+    for (let step = 1; step <= 5; step++) {
+      await new Promise(resolve => setTimeout(resolve, 450));
+      setMerchantHandshakeStep(step);
+      setMerchantHandshakeLogs(prev => [...prev, logs[step]]);
+    }
+
+    // Complete transaction dispatch
+    const res = buyGiftCards([{ brand: selectedMerchant, value: normAmount, qty: 1 }], giftEmail);
+    setIsPerformingMerchantApiHandshake(false);
+    
+    if (res.success) {
+      setSuccessMsg(`Direct merchant checkout completed! Instant cryptographic claim codes for ${selectedMerchant} ($${normAmount.toFixed(2)}) have been dispatched to ${giftEmail}.`);
+    } else {
+      setErrorMsg(res.message);
+    }
+  };
+
+  const updateGiftQty = (id: string, delta: number) => {
+    setGiftCart(prev => {
+      const current = prev[id] || 0;
+      const next = Math.max(0, current + delta);
+      if (next === 0) {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      }
+      return { ...prev, [id]: next };
+    });
+  };
+
+  const getGiftTotal = () => {
+    return AVAILABLE_GIFT_CARDS.reduce((acc, card) => {
+      const qty = giftCart[card.id] || 0;
+      return acc + (card.value * qty);
+    }, 0);
+  };
+
+  const handleBuyGiftCards = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const items = AVAILABLE_GIFT_CARDS.filter(c => (giftCart[c.id] || 0) > 0).map(c => ({
+      brand: c.brand,
+      value: c.value,
+      qty: giftCart[c.id]
+    }));
+
+    if (items.length === 0) {
+      setErrorMsg('Please select at least one gift card to purchase.');
+      return;
+    }
+
+    if (!giftEmail || !giftEmail.includes('@')) {
+      setErrorMsg('Please enter a valid recipient email address.');
+      return;
+    }
+
+    const res = buyGiftCards(items, giftEmail);
+    if (res.success) {
+      setSuccessMsg(res.message);
+      setGiftCart({});
+      setPayoutInput('');
+    } else {
+      setErrorMsg(res.message);
+    }
+  };
 
   // P2P Peer Transfer States
   const [recipientAddress, setRecipientAddress] = useState<string>('');
@@ -54,7 +242,7 @@ export const PayoutConsole: React.FC = () => {
   const [handshakeLogs, setHandshakeLogs] = useState<string[]>([]);
 
   // Ledger filter type: 'all' | 'cash' | 'crypto'
-  const [filterType, setFilterType] = useState<'all' | 'cash' | 'crypto'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'cash' | 'crypto' | 'giftcard'>('all');
 
   // Analytics Chart States
   const [analyticsViewType, setAnalyticsViewType] = useState<'cumulative' | 'individual'>('cumulative');
@@ -363,14 +551,14 @@ export const PayoutConsole: React.FC = () => {
       <div className="lg:col-span-7 space-y-6">
         
         {/* Dynamic Navigation Mode Tabs */}
-        <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-1.5 flex gap-2 font-mono">
+        <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-1.5 flex flex-wrap gap-2 font-mono">
           <button
             onClick={() => {
               setActiveFormTab('cash');
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[11px] sm:text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeFormTab === 'cash'
                 ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
                 : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
@@ -386,7 +574,7 @@ export const PayoutConsole: React.FC = () => {
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[11px] sm:text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeFormTab === 'crypto'
                 ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
                 : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
@@ -402,7 +590,7 @@ export const PayoutConsole: React.FC = () => {
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[11px] sm:text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeFormTab === 'transfer'
                 ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
                 : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
@@ -410,6 +598,22 @@ export const PayoutConsole: React.FC = () => {
           >
             <Users className="h-3.5 w-3.5" />
             <span>P2P Peer Transfers</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveFormTab('giftcard');
+              setErrorMsg(null);
+              setSuccessMsg(null);
+            }}
+            className={`flex-1 py-2 px-3 sm:px-4 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeFormTab === 'giftcard'
+                ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                : 'text-white/40 hover:text-white/70 hover:bg-white/5 bg-transparent'
+            }`}
+          >
+            <Gift className="h-3.5 w-3.5" />
+            <span>Gift Store</span>
           </button>
         </div>
 
@@ -1131,6 +1335,293 @@ export const PayoutConsole: React.FC = () => {
           </div>
         )}
 
+        {activeFormTab === 'giftcard' && (
+          <div id="gift_cards_store_panel" className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 backdrop-blur-md font-mono animate-fade-in space-y-5">
+            <h3 className="text-sm font-semibold text-white/90 flex items-center gap-2 mb-2">
+              <Gift className="h-4.5 w-4.5 text-emerald-450 text-emerald-400" />
+              <span>Alpha Miner Gift Card Clearance Store</span>
+            </h3>
+            <p className="text-[10px] text-white/40 leading-relaxed text-left">
+              Purchase premium digital gift cards from certifed merchants. Codes are cleared by direct API handshake, instantly dispatched to your recipient address and saved inside your **Cloud Inbox**.
+            </p>
+
+            {/* Mode switch selector */}
+            <div className="flex bg-black/60 p-1 rounded-xl border border-white/5 text-[9px] uppercase font-black tracking-wider">
+              <button
+                type="button"
+                onClick={() => setMerchantStoreMode('merchant_api')}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-center transition-all cursor-pointer ${merchantStoreMode === 'merchant_api' ? 'bg-emerald-500 text-slate-950 font-black shadow' : 'text-white/40 hover:text-white/80'}`}
+              >
+                Direct Merchant API Sync
+              </button>
+              <button
+                type="button"
+                onClick={() => setMerchantStoreMode('catalog')}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-center transition-all cursor-pointer ${merchantStoreMode === 'catalog' ? 'bg-emerald-500 text-slate-950 font-black shadow' : 'text-white/40 hover:text-white/80'}`}
+              >
+                Predefined catalog
+              </button>
+            </div>
+
+            {merchantStoreMode === 'merchant_api' ? (
+              <form onSubmit={handleDirectMerchantCheckout} className="space-y-4">
+                {/* Valuation Overview */}
+                <div className="flex justify-between items-center text-xs p-3.5 bg-[#050505] rounded-xl border border-white/10">
+                  <span className="text-white/40 font-semibold">Total Account Valuation:</span>
+                  <span className="font-bold text-emerald-400">
+                    {formatVal(usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+                      const actualAmt = crypto === activeCrypto ? coins : amt;
+                      const price = prices[crypto] || 0;
+                      return acc + (actualAmt * price);
+                    }, 0))}
+                  </span>
+                </div>
+
+                {/* Merchant Selector Grid */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[9px] text-white/40 uppercase tracking-wider block font-semibold">
+                    Select Certified Retailer Brand
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[140px] overflow-y-auto pr-1">
+                    {MERCHANTS_LIST.map(item => {
+                      const isSelected = selectedMerchant === item.name;
+                      return (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => setSelectedMerchant(item.name)}
+                          className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all text-center select-none cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-500/10 border-emerald-500'
+                              : 'bg-black/30 border-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className={`p-1 bg-gradient-to-br ${item.color} text-white rounded-md`}>
+                            <Gift className="h-3 w-3 text-white" />
+                          </div>
+                          <span className="text-[8px] font-black leading-tight text-white/90 truncate max-w-full">
+                            {item.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Amount Selector Slider & QuickPres */}
+                <div className="space-y-2 text-left bg-black/40 border border-white/5 p-3 rounded-xl">
+                  <div className="flex justify-between items-center text-[9px] text-white/40 font-semibold uppercase">
+                    <span>Voucher Value (USD)</span>
+                    <span className="text-emerald-400 font-extrabold text-xs">$ {customAmount} USD</span>
+                  </div>
+                  
+                  <input
+                    type="range"
+                    min="5"
+                    max="500"
+                    step="5"
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(parseInt(e.target.value, 10))}
+                    className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg cursor-pointer"
+                  />
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[10, 25, 50, 100, 255, 500].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setCustomAmount(val)}
+                        className={`text-[8px] font-bold px-2 py-1 rounded border transition-all cursor-pointer ${
+                          customAmount === val
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                            : 'bg-white/5 border-white/5 text-white/50 hover:text-white'
+                        }`}
+                      >
+                        ${val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Telemetry panel for merchant clearing */}
+                <div className="bg-[#050505] border border-white/5 p-3 rounded-xl space-y-2 text-left text-[9px] font-mono">
+                  <div className="flex justify-between items-center text-white/30 text-[8px] uppercase font-black mb-1">
+                    <span>Merchant Gateway Connection</span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-emerald-400 font-semibold">Active Sync / 24ms</span>
+                    </span>
+                  </div>
+                  {(() => {
+                    const m = MERCHANTS_LIST.find(x => x.name === selectedMerchant) || MERCHANTS_LIST[0];
+                    return (
+                      <div className="text-white/60 leading-normal space-y-1">
+                        <div className="flex items-center gap-1 text-emerald-400/80">
+                          <span className="font-extrabold text-[8px]">DNS ROUTE:</span>
+                          <span className="select-all font-bold font-mono">{m.api}</span>
+                        </div>
+                        <div className="text-[8px] text-white/40 leading-normal font-medium">{m.desc}</div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {isPerformingMerchantApiHandshake && (
+                    <div className="bg-black/85 border border-emerald-500/20 p-2.5 rounded-lg space-y-1 mt-2 animate-pulse">
+                      <div className="flex items-center gap-1.5 text-[8.5px] font-bold text-emerald-400">
+                        <Loader2 className="h-3 w-3 animate-spin text-emerald-400 shrink-0" />
+                        <span>CLEARING SECURE CLOUD HANDSHAKE...</span>
+                      </div>
+                      <div className="font-mono text-[7.5px] text-emerald-300/85 leading-normal space-y-1 max-h-[85px] overflow-y-auto mt-1 flex flex-col text-left">
+                        {merchantHandshakeLogs.map((log, idx) => (
+                          <div key={idx} className="block truncate">{log}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Email Delivery */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[9px] text-white/40 uppercase tracking-wider block font-semibold">
+                    Recipient Delivery Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={giftEmail}
+                    onChange={(e) => setGiftEmail(e.target.value)}
+                    placeholder="name@destination.com"
+                    className="w-full bg-[#05055] bg-black/40 border border-white/10 focus:border-emerald-400/45 text-[11px] text-slate-300 px-3 h-10 rounded-xl outline-none font-mono"
+                  />
+                </div>
+
+                {errorMsg && (
+                  <div className="p-3 bg-rose-950/20 border border-rose-500/20 text-rose-400 text-xs rounded-xl flex gap-2 text-left">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 text-emerald-350 text-xs rounded-xl flex gap-2 text-left">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isPerformingMerchantApiHandshake}
+                  className="w-full h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md flex items-center justify-center gap-1.5 font-mono"
+                >
+                  <Gift className="h-4 w-4" />
+                  <span>Connect Merchant & Buy Voucher</span>
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleBuyGiftCards} className="space-y-4">
+                {/* Valuation Overview */}
+                <div className="flex justify-between items-center text-xs p-3.5 bg-[#050505] rounded-xl border border-white/10">
+                  <span className="text-white/40 font-semibold">Total Balance Valuation:</span>
+                  <span className="font-bold text-emerald-400">
+                    {formatVal(usd + Object.entries(balances || {}).reduce((acc, [crypto, amt]) => {
+                      const actualAmt = crypto === activeCrypto ? coins : amt;
+                      const price = prices[crypto] || 0;
+                      return acc + (actualAmt * price);
+                    }, 0))}
+                  </span>
+                </div>
+
+                {/* Gift Card Catalog Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1">
+                  {AVAILABLE_GIFT_CARDS.map(card => {
+                    const qty = giftCart[card.id] || 0;
+                    return (
+                      <div key={card.id} className="bg-black/30 border border-white/5 rounded-xl p-3 flex items-center justify-between gap-2 hover:border-white/10 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 bg-gradient-to-br ${card.color} text-white rounded-lg`}>
+                            <Gift className="h-3.5 w-3.5 text-white" />
+                          </div>
+                          <div className="flex flex-col text-left">
+                            <span className="text-[10px] font-bold text-white/90 leading-tight">{card.brand}</span>
+                            <span className="text-[9px] text-white/50 leading-tight">${card.value} USD</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updateGiftQty(card.id, -1)}
+                            className="h-5 w-5 rounded bg-white/5 hover:bg-white/10 text-white flex items-center justify-center font-bold text-[10px] select-none cursor-pointer"
+                          >
+                            -
+                          </button>
+                          <span className={`w-3 text-center text-[10px] font-extrabold ${qty > 0 ? 'text-emerald-400 font-bold' : 'text-white/30'}`}>
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateGiftQty(card.id, 1)}
+                            className="h-5 w-5 rounded bg-white/5 hover:bg-white/10 text-white flex items-center justify-center font-bold text-[10px] select-none cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Recipient Coordinates Form */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider block font-semibold">
+                    Recipient Delivery Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={giftEmail}
+                    onChange={(e) => setGiftEmail(e.target.value)}
+                    placeholder="name@destination.com"
+                    className="w-full bg-[#050505] border border-white/10 focus:border-emerald-400/40 text-[11px] text-slate-300 px-3 h-10 rounded-xl outline-none font-mono"
+                  />
+                </div>
+
+                {/* Cart Summary */}
+                <div className="flex justify-between items-center text-xs pt-1 border-t border-white/5 text-white/60">
+                  <span>Total Cart Cost:</span>
+                  <span className={`font-bold ${getGiftTotal() > 0 ? 'text-white font-extrabold text-sm' : 'text-white/40'}`}>
+                    ${getGiftTotal().toFixed(2)} USD
+                  </span>
+                </div>
+
+                {errorMsg && (
+                  <div className="p-3 bg-rose-950/20 border border-rose-500/20 text-rose-400 text-xs rounded-xl flex gap-2 text-left">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 text-emerald-350 text-xs rounded-xl flex gap-2 text-left">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={getGiftTotal() <= 0}
+                  className="w-full h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md flex items-center justify-center gap-1.5 font-mono"
+                >
+                  <Gift className="h-4 w-4" />
+                  <span>Checkout & Dispatch Gift Cards</span>
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* RIGHT: Confirmation Blockchain ledger */}
@@ -1154,7 +1645,7 @@ export const PayoutConsole: React.FC = () => {
                 dateStr: `${date.getMonth() + 1}/${date.getDate()}`,
                 amountUSD: tx.amountUSD,
                 crypto: tx.crypto || 'Cash Out',
-                label: tx.isTransfer ? `P2P ${tx.crypto}` : (tx.type === 'cash' ? 'USD Cash Out' : `${tx.crypto} Dispatch`)
+                label: tx.isTransfer ? `P2P ${tx.crypto}` : (tx.type === 'giftcard' ? 'Gift Voucher Clear' : (tx.type === 'cash' ? 'USD Cash Out' : `${tx.crypto} Dispatch`))
               };
             });
 
@@ -1224,18 +1715,18 @@ export const PayoutConsole: React.FC = () => {
 
           {payouts.length > 0 && (
             <div className="flex bg-[#050505] p-1 rounded-xl border border-white/5 gap-1 mb-4 text-[10px] font-bold">
-              {(['all', 'cash', 'crypto'] as const).map(type => (
+              {(['all', 'cash', 'crypto', 'giftcard'] as const).map(type => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setFilterType(type)}
-                  className={`flex-1 py-1.5 px-2.5 rounded-lg transition-all capitalize cursor-pointer text-center font-mono ${
+                  className={`flex-1 py-1.5 px-2 rounded-lg transition-all capitalize cursor-pointer text-center font-mono ${
                     filterType === type
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm'
                       : 'text-white/40 hover:text-white hover:bg-white/5 border border-transparent'
                   }`}
                 >
-                  {type === 'all' ? 'All' : type === 'cash' ? 'Cash' : 'Crypto'}
+                  {type === 'all' ? 'All' : type === 'cash' ? 'Cash' : type === 'giftcard' ? 'Gift Card' : 'Crypto'}
                 </button>
               ))}
             </div>
@@ -1462,7 +1953,12 @@ export const PayoutConsole: React.FC = () => {
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            {tx.type === 'crypto' ? (
+                            {tx.type === 'giftcard' ? (
+                              <>
+                                <span className="text-xs font-bold text-emerald-400">Gift Code Voucher</span>
+                                <span className="text-[9px] text-white/40">(≃ {formatVal(tx.amountUSD)})</span>
+                              </>
+                            ) : tx.type === 'crypto' ? (
                               <>
                                 <span className={`text-xs font-bold ${coinColor}`}>{tx.amountCoin} {tx.crypto}</span>
                                 <span className="text-[9px] text-white/40">(≃ {formatVal(tx.amountUSD)})</span>
@@ -1476,6 +1972,9 @@ export const PayoutConsole: React.FC = () => {
                           </div>
                           <p className="text-[9px] text-[#a0a0a0] font-mono mt-1 font-semibold block truncate max-w-[150px]">
                             Target: {tx.address.slice(0, 10)}...
+                          </p>
+                          <p className="text-[9px] text-emerald-400 font-mono mt-0.5 font-bold block">
+                            Ref: {tx.referenceNumber || tx.id}
                           </p>
                         </div>
                       </div>
@@ -1507,6 +2006,95 @@ export const PayoutConsole: React.FC = () => {
                     {/* Expandable Panel */}
                     {isExpanded && (
                       <div className="mt-3.5 pt-3.5 border-t border-white/5 space-y-3 font-mono text-[9px] text-[#a0a0a0] animate-fade-in">
+                        {/* Interactive Digital Gift Card Voucher Display */}
+                        {tx.type === 'giftcard' && (() => {
+                          const details = parseGiftCardDetails(tx);
+                          const matchedMerchant = MERCHANTS_LIST.find(m => m.name.toLowerCase() === details.brand.toLowerCase()) || MERCHANTS_LIST[0];
+                          
+                          // Generate robust, deterministic barcode segments, serial number, and claims code
+                          const isHscSigned = tx.id || 'sec_id';
+                          const serial = `SN-${isHscSigned.slice(-6).toUpperCase()}-${Math.floor(1000 + (tx.timestamp % 9000))}`;
+                          const pin = String(Math.floor(1000 + (tx.timestamp % 9000)));
+                          
+                          // Format realistic code based on brand
+                          let codeStr = '';
+                          const cleanBrand = details.brand.toLowerCase();
+                          if (cleanBrand.includes('apple')) {
+                            codeStr = `AP-${isHscSigned.slice(-4).toUpperCase()}-9KLX-1Y9Z-${pin}`;
+                          } else if (cleanBrand.includes('amazon')) {
+                            codeStr = `AMZ-${isHscSigned.slice(-4).toUpperCase()}-3K9X1-L4PA`;
+                          } else if (cleanBrand.includes('steam')) {
+                            codeStr = `STM-${isHscSigned.slice(-3).toUpperCase()}-Z97K-W4P1`;
+                          } else if (cleanBrand.includes('google')) {
+                            codeStr = `GPL-${isHscSigned.slice(-4).toUpperCase()}-198X-77A1`;
+                          } else {
+                            codeStr = `${details.brand.slice(0, 3).toUpperCase()}-${isHscSigned.slice(-4).toUpperCase()}-99X1-${pin}`;
+                          }
+
+                          return (
+                            <div className="bg-gradient-to-br from-zinc-900 to-black p-4 rounded-xl border border-white/10 shadow-2xl relative overflow-hidden text-left space-y-3 mb-2">
+                              {/* Glowing card background mesh */}
+                              <div className={`absolute top-0 right-0 w-36 h-36 bg-gradient-to-br ${matchedMerchant.color} rounded-full blur-[45px] opacity-25`} />
+                              
+                              <div className="flex justify-between items-start relative z-10">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className={`p-1 bg-gradient-to-br ${matchedMerchant.color} rounded text-white shrink-0 shadow`}>
+                                      <Gift className="h-2.5 w-2.5 text-white" />
+                                    </div>
+                                    <span className="text-[10px] font-black text-white/90 tracking-wide uppercase">{details.brand} Digital Voucher</span>
+                                  </div>
+                                  <div className="text-[7.5px] text-white/35 font-mono uppercase tracking-widest">{serial}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-emerald-400 font-black text-sm tracking-tight">${details.value.toFixed(2)} USD</div>
+                                  <div className="text-[7.5px] text-emerald-400/60 font-extrabold uppercase tracking-wide">Live Active Balance</div>
+                                </div>
+                              </div>
+
+                              {/* Virtual Code Box */}
+                              <div className="bg-black/60 p-2.5 rounded-lg border border-white/5 space-y-1.5 relative z-10 sm:max-w-xs md:max-w-none">
+                                <span className="text-[7.5px] text-white/40 uppercase tracking-widest font-black block">Claim Code & Credentials</span>
+                                <div className="flex justify-between items-center gap-2">
+                                  <div className="text-[10px] text-emerald-350 font-black font-mono tracking-wider select-all">
+                                    {codeStr}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(codeStr);
+                                    }}
+                                    className="p-1 rounded bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 text-white/40 transition-colors cursor-pointer text-[7.5px] font-black uppercase"
+                                  >
+                                    Copy Code
+                                  </button>
+                                </div>
+                                <div className="flex justify-between items-center text-[8px] text-white/55 font-semibold pt-1 border-t border-white/5 font-mono">
+                                  <span>PIN: <strong className="text-white/90 select-all font-black">{pin}</strong></span>
+                                  <span>STATUS: <strong className="text-emerald-400 font-black">VALID & CLEARED</strong></span>
+                                </div>
+                              </div>
+
+                              {/* Aesthetic Barcode representation */}
+                              <div className="flex justify-between items-end pt-1 relative z-10">
+                                <div className="space-y-0.5">
+                                  {/* Draw clean procedural barcode lines */}
+                                  <div className="flex items-center gap-[1px] h-6 px-1 bg-white/5 py-0.5 rounded">
+                                    {[2, 1, 3, 1, 2, 1, 3, 2, 1, 2, 2, 1, 3, 1, 1, 2, 1, 3, 1, 2, 1].map((w, idx) => (
+                                      <div key={idx} className="bg-white/80 h-full" style={{ width: `${w}px` }} />
+                                    ))}
+                                  </div>
+                                  <span className="text-[6.5px] text-white/20 tracking-wider block font-mono pl-1">VOUCHER_SECURE_AUTH_REF_{tx.referenceNumber}</span>
+                                </div>
+                                <span className="text-[7px] text-[#8a8a8a] max-w-[130px] leading-tight text-right text-white/30 truncate">
+                                  Authorized by Sovereign Merchant Network
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Metrics Grid */}
                         <div className="grid grid-cols-2 gap-2">
                           <div className="bg-white/[0.02] border border-white/5 p-2 rounded-xl flex items-center gap-2">

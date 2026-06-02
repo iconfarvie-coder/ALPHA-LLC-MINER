@@ -12,6 +12,7 @@ import { LoginPage } from './components/LoginPage';
 import { GmailInbox } from './components/GmailInbox';
 import { BlockExplorer } from './components/BlockExplorer';
 import { SupportAndSettings } from './components/SupportAndSettings';
+import { ToastContainer } from './components/ToastContainer';
 import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign, ShieldCheck, Mail, Database, HelpCircle, Settings } from 'lucide-react';
 
 function AppContent() {
@@ -29,6 +30,8 @@ function AppContent() {
     user,
     mineClick,
     emergencyShutdown,
+    toasts,
+    removeToast,
   } = useMining();
 
   // Unified layout fitting and scale settings
@@ -39,11 +42,11 @@ function AppContent() {
 
   const [compactLayout, setCompactLayout] = useState<boolean>(() => {
     const saved = localStorage.getItem('fast_miner_compact_layout');
-    return saved === 'true';
+    return saved !== 'false'; // Default to true!
   });
   const [autoScale, setAutoScale] = useState<boolean>(() => {
     const saved = localStorage.getItem('fast_miner_auto_scale');
-    return saved !== 'false'; // Default to true for premium experience!
+    return saved === 'true'; // Default to false!
   });
 
   // Automatically adjust scale ratio by sniffing viewport width (stops headings clashing on small iframes)
@@ -140,6 +143,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#f2f2f2] flex flex-col font-sans selection:bg-emerald-500/20 selection:text-emerald-400">
+      
+      {/* Toast Notification Stack Container */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
       
       {/* Top Banner Alert System for Throttling over-temperature */}
       {stats.throttled && (

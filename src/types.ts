@@ -18,6 +18,7 @@ export interface MiningUpgrade {
 
 export interface PayoutTransaction {
   id: string;
+  referenceNumber?: string;
   amountCoin: number;
   amountUSD: number;
   address: string; // Recipient wallet address
@@ -27,7 +28,7 @@ export interface PayoutTransaction {
   txHash: string;
   fee: number;
   blockNumber: number;
-  type?: 'cash' | 'crypto' | 'transfer';
+  type?: 'cash' | 'crypto' | 'transfer' | 'giftcard';
   crypto?: string;
   gateway?: 'paypal' | 'bank' | 'wallet';
   gatewayDetails?: string;
@@ -115,6 +116,7 @@ export interface SimulatedBlock {
 
 export interface UserTransaction {
   id: string;
+  referenceNumber?: string;
   type: 'COIN_SELL' | 'UPGRADE_BUY' | 'BOOSTER_ACTIVATE' | 'WITHDRAWAL' | 'CUSTOM_GENERATED';
   title: string;
   amount: string;
@@ -132,6 +134,16 @@ export interface PerformanceRecord {
   powerDraw: number; // in Watts
   efficiency: number; // MH/kW-h or MH/J
   activeCrypto: string; // e.g. BTC, ETH, DOGE, HSC, SOL
+}
+
+export interface AppToast {
+  id: string;
+  type: 'success' | 'info' | 'error' | 'warning';
+  title: string;
+  message: string;
+  referenceNumber?: string;
+  timestamp: number;
+  duration?: number;
 }
 
 

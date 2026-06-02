@@ -56,6 +56,10 @@ export const SupportAndSettings: React.FC = () => {
     usd,
     stats,
     realtimeStorageLogs,
+    soundEnabled,
+    setSoundEnabled,
+    voicePromptsEnabled,
+    setVoicePromptsEnabled,
   } = useMining();
 
   // Sub-tabs in Support Section
@@ -725,8 +729,59 @@ export const SupportAndSettings: React.FC = () => {
                     <span>General Terminal Preferences</span>
                   </h4>
 
-                  <div className="space-y-3">
+                  <div className="space-y-5">
+                    {/* Master sound mute/unmute control */}
                     <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col">
+                        <span className="text-[9.5px] text-white font-bold flex items-center gap-1">
+                          Terminal Action Sound Effects
+                          <span className={`px-1 rounded-[3px] text-[7px] font-extrabold tracking-wider ${soundEnabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                            {soundEnabled ? 'ACTIVE/UNMUTED' : 'MUTED'}
+                          </span>
+                        </span>
+                        <span className="text-[8px] text-white/30 mt-0.5">Master audio toggle for tactile manual clicks, hardware upgrades, and trade triggers</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSoundEnabled(!soundEnabled);
+                        }}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          soundEnabled ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow transition duration-200 ease-in-out ${
+                          soundEnabled ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[9.5px] text-white font-bold flex items-center gap-1">
+                          Sovereign AI Speech Assistant
+                          <span className={`px-1 rounded-[3px] text-[7px] font-extrabold tracking-wider ${soundEnabled && voicePromptsEnabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                            {soundEnabled && voicePromptsEnabled ? 'ONLINE/ACTIVE' : 'MUTED'}
+                          </span>
+                        </span>
+                        <span className="text-[8px] text-white/30 mt-0.5">Vocalize system startups, booster injection alerts, hardware racks, and DEX clearance</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoicePromptsEnabled(!voicePromptsEnabled);
+                        }}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          voicePromptsEnabled ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow transition duration-200 ease-in-out ${
+                          voicePromptsEnabled ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/5">
                       <div className="flex flex-col">
                         <span className="text-[9.5px] text-white font-bold">Audio Notification Alerts</span>
                         <span className="text-[8px] text-white/30 mt-0.5">Toggle sound indicators on verified settlement dispatch</span>
