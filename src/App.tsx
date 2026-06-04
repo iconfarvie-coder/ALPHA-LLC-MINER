@@ -12,6 +12,7 @@ import { LoginPage } from './components/LoginPage';
 import { GmailInbox } from './components/GmailInbox';
 import { BlockExplorer } from './components/BlockExplorer';
 import { SupportAndSettings } from './components/SupportAndSettings';
+import { AlphaCoinHub } from './components/AlphaCoinHub';
 import { ToastContainer } from './components/ToastContainer';
 import { Cpu, Server, TrendingUp, Wallet, ShieldAlert, AlertCircle, RefreshCw, Zap, Coins, DollarSign, ShieldCheck, Mail, Database, HelpCircle, Settings } from 'lucide-react';
 
@@ -134,6 +135,7 @@ function AppContent() {
     { id: 'payouts', label: 'Payout/Withdrawal', icon: Wallet },
     { id: 'emails', label: 'Cloud Mail', icon: Mail },
     { id: 'explorer', label: 'Block Explorer', icon: Database },
+    { id: 'alpha_hub', label: 'Alpha Hub', icon: Coins },
     { id: 'support', label: 'Help & Prefs', icon: HelpCircle },
   ] as const;
 
@@ -439,6 +441,7 @@ function AppContent() {
           {activeTab === 'payouts' && <PayoutConsole />}
           {activeTab === 'emails' && <GmailInbox />}
           {activeTab === 'explorer' && <BlockExplorer />}
+          {activeTab === 'alpha_hub' && <AlphaCoinHub />}
           {activeTab === 'support' && <SupportAndSettings />}
         </div>
 

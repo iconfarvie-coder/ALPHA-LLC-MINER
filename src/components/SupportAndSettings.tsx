@@ -60,6 +60,8 @@ export const SupportAndSettings: React.FC = () => {
     setSoundEnabled,
     voicePromptsEnabled,
     setVoicePromptsEnabled,
+    appTheme,
+    setAppTheme,
   } = useMining();
 
   // Sub-tabs in Support Section
@@ -798,6 +800,32 @@ export const SupportAndSettings: React.FC = () => {
                       >
                         <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow transition duration-200 ease-in-out ${
                           soundAlerts ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/5">
+                      <div className="flex flex-col flex-1">
+                        <span className="text-[9.5px] text-white font-bold flex items-center gap-1.5">
+                          Visual Interface Theme
+                          <span className={`px-1 rounded-[3px] text-[7.5px] font-black tracking-wider ${appTheme === 'high-contrast-light' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                            {appTheme === 'high-contrast-light' ? 'LIGHT THEME' : 'DEEP SPACE'}
+                          </span>
+                        </span>
+                        <span className="text-[8px] text-white/30 mt-0.5">Toggle between Deep Space (dark cyberpunk) and High Contrast Light (eye-safe and highly readable panel)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextTheme = appTheme === 'deep-space' ? 'high-contrast-light' : 'deep-space';
+                          setAppTheme(nextTheme);
+                        }}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          appTheme === 'high-contrast-light' ? 'bg-amber-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow transition duration-200 ease-in-out ${
+                          appTheme === 'high-contrast-light' ? 'translate-x-4' : 'translate-x-0'
                         }`} />
                       </button>
                     </div>

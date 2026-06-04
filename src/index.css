@@ -36,3 +36,171 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.5);
 }
+
+/* 🌟 HIGH CONTRAST LIGHT THEME OVERRIDES 🌟 */
+.high-contrast-light,
+.high-contrast-light body,
+.high-contrast-light .min-h-screen {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Base containers, headers, footers & modals */
+.high-contrast-light header,
+.high-contrast-light footer,
+.high-contrast-light .bg-\[\#0a0a0a\],
+.high-contrast-light .bg-\[\#141414\],
+.high-contrast-light .bg-\[\#0f0f0f\],
+.high-contrast-light .bg-slate-950,
+.high-contrast-light .bg-black {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+/* Nested card inputs or off-white segments */
+.high-contrast-light .bg-\[\#050505\],
+.high-contrast-light .bg-black\/40,
+.high-contrast-light .bg-\[\#0d0d0d\],
+.high-contrast-light .bg-\[\#0a0a0a\]\/40,
+.high-contrast-light .bg-\[\#050505\]\/40 {
+  background-color: #f1f5f9 !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Input Fields and Interactive Filters */
+.high-contrast-light input,
+.high-contrast-light select,
+.high-contrast-light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.25) !important;
+}
+
+.high-contrast-light input::placeholder,
+.high-contrast-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Text class overrides from light/neon to high-contrast darks */
+.high-contrast-light .text-white,
+.high-contrast-light .text-slate-200,
+.high-contrast-light .text-slate-300,
+.high-contrast-light .text-\[\#f2f2f2\] {
+  color: #0f172a !important;
+}
+
+.high-contrast-light .text-slate-400,
+.high-contrast-light .text-slate-350,
+.high-contrast-light .text-white\/70,
+.high-contrast-light .text-slate-250 {
+  color: #334155 !important;
+}
+
+.high-contrast-light .text-slate-500,
+.high-contrast-light .text-white\/40,
+.high-contrast-light .text-white\/30,
+.high-contrast-light .text-slate-600 {
+  color: #475569 !important;
+}
+
+/* Enhance contrast for colored statuses and metrics */
+.high-contrast-light .text-emerald-400,
+.high-contrast-light .text-emerald-350 {
+  color: #15803d !important; /* Forest Green for supreme light contrast */
+}
+
+.high-contrast-light .text-cyan-400 {
+  color: #0369a1 !important; /* Darker Ocean Cyan */
+}
+
+.high-contrast-light .text-amber-400,
+.high-contrast-light .text-amber-300 {
+  color: #a16207 !important; /* Darker Amber Brown */
+}
+
+.high-contrast-light .text-rose-400,
+.high-contrast-light .text-red-400,
+.high-contrast-light .text-rose-450 {
+  color: #be123c !important; /* Deep Red */
+}
+
+/* Solid colored badges with low opacity text */
+.high-contrast-light .bg-emerald-500\/10 {
+  background-color: rgba(21, 128, 61, 0.08) !important;
+  color: #15803d !important;
+  border-color: rgba(21, 128, 61, 0.15) !important;
+}
+
+.high-contrast-light .bg-red-500\/10,
+.high-contrast-light .bg-rose-500\/10 {
+  background-color: rgba(190, 18, 60, 0.08) !important;
+  color: #be123c !important;
+  border-color: rgba(190, 18, 60, 0.15) !important;
+}
+
+.high-contrast-light .bg-amber-500\/10 {
+  background-color: rgba(161, 98, 7, 0.08) !important;
+  color: #a16207 !important;
+  border-color: rgba(161, 98, 7, 0.15) !important;
+}
+
+/* Borders */
+.high-contrast-light .border-white\/10,
+.high-contrast-light .border-white\/5,
+.high-contrast-light .border-white\/20,
+.high-contrast-light .border-slate-800,
+.high-contrast-light .border-\[\#1f2937\]\/50 {
+  border-color: rgba(15, 23, 42, 0.15) !important;
+}
+
+/* Glass, interactive buttons and tabs */
+.high-contrast-light .bg-white\/15,
+.high-contrast-light .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+.high-contrast-light .bg-white\/5 {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+.high-contrast-light .hover\:bg-white\/10:hover {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+.high-contrast-light .hover\:bg-white\/5:hover {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+/* Exclude colored solid buttons from white/black overrides */
+.high-contrast-light .bg-emerald-500,
+.high-contrast-light .bg-red-500,
+.high-contrast-light .bg-amber-500,
+.high-contrast-light .bg-[#10b981],
+.high-contrast-light .bg-blue-600 {
+  color: #ffffff !important;
+}
+
+.high-contrast-light .bg-emerald-500 *,
+.high-contrast-light .bg-red-500 *,
+.high-contrast-light .bg-amber-500 *,
+.high-contrast-light .bg-\[\#10b981\] *,
+.high-contrast-light .bg-blue-600 * {
+  color: #ffffff !important;
+}
+
+/* Disable tech design glowing neon effects */
+.high-contrast-light .glow-green,
+.high-contrast-light .glow-cyan,
+.high-contrast-light .glow-amber,
+.high-contrast-light .glow-red {
+  text-shadow: none !important;
+}
+
+/* Set up deep neutral text for special title highlights */
+.high-contrast-light h1,
+.high-contrast-light h2,
+.high-contrast-light h3,
+.high-contrast-light h4 {
+  color: #0f172a !important;
+}

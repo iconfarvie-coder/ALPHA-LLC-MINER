@@ -15,8 +15,8 @@ interface MiningContextType {
   news: MarketNews[];
   activeNews: MarketNews | null;
   marketHistory: PriceDataPoint[];
-  activeTab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'support';
-  setActiveTab: (tab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'support') => void;
+  activeTab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'alpha_hub' | 'support';
+  setActiveTab: (tab: 'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'alpha_hub' | 'support') => void;
   mineClick: () => void;
   buyUpgrade: (id: string) => boolean;
   sellCoins: (amount: number) => void;
@@ -31,6 +31,8 @@ interface MiningContextType {
   setSoundEnabled: (val: boolean) => void;
   voicePromptsEnabled: boolean;
   setVoicePromptsEnabled: (val: boolean) => void;
+  appTheme: 'deep-space' | 'high-contrast-light';
+  setAppTheme: (val: 'deep-space' | 'high-contrast-light') => void;
 
   // Block explorer
   simulatedBlocks: SimulatedBlock[];
@@ -136,6 +138,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ETH: true,
       SOL: true,
       DOGE: true,
+      ALPHA: true,
     };
   });
 
@@ -171,6 +174,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ETH: val,
         SOL: val,
         DOGE: val,
+        ALPHA: val,
       };
       localStorage.setItem('fast_miner_active_miners', JSON.stringify(updated));
       playSound('toggle');
@@ -236,6 +240,23 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       speakVoice("AI vocal assistant prompts activated.");
     }
   };
+
+  const [appTheme, setAppThemeState] = useState<'deep-space' | 'high-contrast-light'>(() => {
+    return (localStorage.getItem('fast_miner_app_theme') as 'deep-space' | 'high-contrast-light') || 'deep-space';
+  });
+
+  const setAppTheme = (val: 'deep-space' | 'high-contrast-light') => {
+    setAppThemeState(val);
+    localStorage.setItem('fast_miner_app_theme', val);
+  };
+
+  useEffect(() => {
+    if (appTheme === 'high-contrast-light') {
+      document.documentElement.classList.add('high-contrast-light');
+    } else {
+      document.documentElement.classList.remove('high-contrast-light');
+    }
+  }, [appTheme]);
 
   // --- Toast Notifications System ---
   const [toasts, setToasts] = useState<AppToast[]>([]);
@@ -311,6 +332,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     { id: 'sol_rpc', name: 'Solana RPC Validator', type: 'Firedancer v0.1', latency: 12, status: 'connected', height: 265042180 },
     { id: 'doge_rpc', name: 'Dogecoin Core Daemon', type: 'Doge Core v1.14', latency: 68, status: 'connected', height: 5092044 },
     { id: 'hsc_rpc', name: 'HashSovereign Network', type: 'L1 FastMesh Hub', latency: 4, status: 'connected', height: 184520 },
+    { id: 'alpha_rpc', name: 'Alpha Network Hub', type: 'Alpha Chain Validator', latency: 6, status: 'connected', height: 452901 },
   ]);
 
   // --- Real-time Processed Block Transactions ---
@@ -333,6 +355,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ETH: 0,
       SOL: 0,
       DOGE: 0,
+      ALPHA: 0,
     };
   });
 
@@ -345,6 +368,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ETH: 3450.00,
       SOL: 185.00,
       DOGE: 0.38,
+      ALPHA: 2.15,
     };
   });
 
@@ -356,8 +380,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (e) {}
     }
     const initialHistories: Record<string, PriceDataPoint[]> = {};
-    const coinsKeys = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'];
-    const basePrices: Record<string, number> = { HSC: 142.50, BTC: 96500.00, ETH: 3450.00, SOL: 185.00, DOGE: 0.38 };
+    const coinsKeys = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE', 'ALPHA'];
+    const basePrices: Record<string, number> = { HSC: 142.50, BTC: 96500.00, ETH: 3450.00, SOL: 185.00, DOGE: 0.38, ALPHA: 2.15 };
     
     coinsKeys.forEach(k => {
       const history: PriceDataPoint[] = [];
@@ -371,13 +395,14 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const close = price + rand + (Math.random() - 0.5) * (range * 0.2);
         const high = Math.max(open, close) + Math.random() * (range * 0.1);
         const low = Math.max(0.01, Math.min(open, close) - Math.random() * (range * 0.1));
+        const isLowValue = k === 'DOGE' || k === 'ALPHA';
         history.push({
           time: pointTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          price: Number(close.toFixed(k === 'DOGE' ? 4 : 2)),
-          open: Number(open.toFixed(k === 'DOGE' ? 4 : 2)),
-          high: Number(high.toFixed(k === 'DOGE' ? 4 : 2)),
-          low: Number(low.toFixed(k === 'DOGE' ? 4 : 2)),
-          close: Number(close.toFixed(k === 'DOGE' ? 4 : 2)),
+          price: Number(close.toFixed(isLowValue ? 4 : 2)),
+          open: Number(open.toFixed(isLowValue ? 4 : 2)),
+          high: Number(high.toFixed(isLowValue ? 4 : 2)),
+          low: Number(low.toFixed(isLowValue ? 4 : 2)),
+          close: Number(close.toFixed(isLowValue ? 4 : 2)),
         });
         price = close;
       }
@@ -571,7 +596,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   
   // --- Active Tab ---
-  const [activeTab, setActiveTab] = useState<'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'support'>('mine');
+  const [activeTab, setActiveTab ] = useState<'mine' | 'upgrades' | 'market' | 'payouts' | 'emails' | 'explorer' | 'alpha_hub' | 'support'>('mine');
 
   // --- Simulated Blockchain Blocks ---
   const [simulatedBlocks, setSimulatedBlocks] = useState<SimulatedBlock[]>(() => {
@@ -583,7 +608,7 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const initialHistory: SimulatedBlock[] = [];
-    const cryptos = ['HSC', 'BTC', 'ETH', 'SOL', 'DOGE'];
+    const cryptos = ['HSC', 'BTC', 'ETH', 'SOL', 'DOGE', 'ALPHA'];
     const miners = [
       'bc1q5x92j6_Bitmain_S21',
       '0x5a20d...91c1_HiveOS_3',
@@ -603,7 +628,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       BTC: 844201,
       ETH: 19894032,
       SOL: 265042180,
-      DOGE: 5092044
+      DOGE: 5092044,
+      ALPHA: 452901
     };
 
     const difficulties: Record<string, string> = {
@@ -611,7 +637,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       BTC: '78.43 T',
       ETH: '12.50 P',
       SOL: '44.82 M',
-      DOGE: '11.85 M'
+      DOGE: '11.85 M',
+      ALPHA: '22.15 G'
     };
 
     const rewards: Record<string, number> = {
@@ -619,7 +646,8 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       BTC: 3.125,
       ETH: 2.0,
       SOL: 1.5,
-      DOGE: 10000
+      DOGE: 10000,
+      ALPHA: 250
     };
 
     const now = Date.now();
@@ -1696,7 +1724,7 @@ ops@hashsovereign.net`
       if (!curSystemOn) {
         return; // Halt transaction simulation during shutdown
       }
-      const cryptos = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'];
+      const cryptos = ['BTC', 'HSC', 'ETH', 'SOL', 'DOGE', 'ALPHA'];
       const randomCrypto = cryptos[Math.floor(Math.random() * cryptos.length)];
       
       const addresses = {
@@ -1705,6 +1733,7 @@ ops@hashsovereign.net`
         ETH: '0xEthereum_Arbitrum_L2_',
         SOL: 'Solana_Validator_Web3_',
         DOGE: 'DogeCore_Mempool_Peer_',
+        ALPHA: 'ALFA_Sovereign_Main_Node_',
       } as Record<string, string>;
 
       const randomAddr = (addresses[randomCrypto] || '0xAddr_') + Math.floor(1000 + Math.random() * 9000);
@@ -1714,6 +1743,7 @@ ops@hashsovereign.net`
         ETH: 0.005 + Math.random() * 0.045,
         SOL: 0.05 + Math.random() * 0.45,
         DOGE: 12.0 + Math.random() * 50.0,
+        ALPHA: 5.0 + Math.random() * 20.0,
       }[randomCrypto] || 1.0;
 
       const feeRate = 0.015; // 1.5% validation commission
@@ -1728,7 +1758,8 @@ ops@hashsovereign.net`
                         (gw.id === 'eth_rpc' && randomCrypto === 'ETH') ||
                         (gw.id === 'sol_rpc' && randomCrypto === 'SOL') ||
                         (gw.id === 'doge_rpc' && randomCrypto === 'DOGE') ||
-                        (gw.id === 'hsc_rpc' && randomCrypto === 'HSC');
+                        (gw.id === 'hsc_rpc' && randomCrypto === 'HSC') ||
+                        (gw.id === 'alpha_rpc' && randomCrypto === 'ALPHA');
         const finalHeight = isMatch ? gw.height + increment : gw.height + (Math.random() > 0.85 ? 1 : 0);
         if (isMatch) {
           resolvedHeight = finalHeight;
@@ -1769,7 +1800,8 @@ ops@hashsovereign.net`
               BTC: 0.00005,
               ETH: 0.001,
               SOL: 0.02,
-              DOGE: 10
+              DOGE: 10,
+              ALPHA: 1.0
             };
             const rewardAmt = bonusMap[randomCrypto] || 1.0;
             const hscBasePrice = 142.50;
@@ -1787,7 +1819,8 @@ ops@hashsovereign.net`
             BTC: '78.43 T',
             ETH: '12.50 P',
             SOL: '44.82 M',
-            DOGE: '11.85 M'
+            DOGE: '11.85 M',
+            ALPHA: '22.15 G'
           };
 
           const rewards: Record<string, number> = {
@@ -1795,7 +1828,8 @@ ops@hashsovereign.net`
             BTC: 3.125,
             ETH: 2.0,
             SOL: 1.5,
-            DOGE: 10000
+            DOGE: 10000,
+            ALPHA: 250
           };
 
           const hashStr = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -2154,9 +2188,9 @@ trading@hashsovereign.net`
             let nextPrice = currentVal * (1 + walkPercent);
             
             // Minimum floor boundaries for coins
-            const floor = cryptoKey === 'DOGE' ? 0.01 : cryptoKey === 'SOL' ? 5.0 : cryptoKey === 'ETH' ? 50.0 : cryptoKey === 'BTC' ? 1000.0 : 12.0;
+            const floor = cryptoKey === 'DOGE' ? 0.01 : cryptoKey === 'ALPHA' ? 0.05 : cryptoKey === 'SOL' ? 5.0 : cryptoKey === 'ETH' ? 50.0 : cryptoKey === 'BTC' ? 1000.0 : 12.0;
             nextPrice = Math.max(floor, nextPrice);
-            const decimals = cryptoKey === 'DOGE' ? 4 : 2;
+            const decimals = cryptoKey === 'DOGE' || cryptoKey === 'ALPHA' ? 4 : 2;
             nextPrice = Number(nextPrice.toFixed(decimals));
 
             nextPrices[cryptoKey] = nextPrice;
@@ -2937,6 +2971,7 @@ ops@hashsovereign.net`
       ETH: 0,
       SOL: 0,
       DOGE: 0,
+      ALPHA: 0,
     });
     setPrices({
       HSC: 142.50,
@@ -2944,6 +2979,7 @@ ops@hashsovereign.net`
       ETH: 3450.00,
       SOL: 185.00,
       DOGE: 0.38,
+      ALPHA: 2.15,
     });
 
     // Reset daily login rewards, active boosters, and inventory booster states
@@ -3401,6 +3437,8 @@ clearing@hashsovereign.net`;
       setSoundEnabled,
       voicePromptsEnabled,
       setVoicePromptsEnabled,
+      appTheme,
+      setAppTheme,
 
       // Toast Notifications System
       toasts,

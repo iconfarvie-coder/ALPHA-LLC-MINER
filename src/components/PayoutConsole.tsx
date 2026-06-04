@@ -948,8 +948,8 @@ export const PayoutConsole: React.FC = () => {
                 <label className="text-[10px] text-white/40 uppercase tracking-wider block mb-1.5 font-semibold">
                   Select Blockchain Node Assets
                 </label>
-                <div className="grid grid-cols-5 gap-1.5 bg-[#050505] p-1.5 rounded-xl border border-white/5">
-                  {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
+                <div className="grid grid-cols-6 gap-1.5 bg-[#050505] p-1.5 rounded-xl border border-white/5">
+                  {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE', 'ALPHA'] as const).map(c => {
                     const isSelected = selectedCrypto === c;
                     const cColors = {
                       HSC: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
@@ -957,6 +957,7 @@ export const PayoutConsole: React.FC = () => {
                       ETH: 'border-violet-500/30 text-violet-400 bg-violet-500/5',
                       SOL: 'border-fuchsia-500/30 text-fuchsia-450 bg-fuchsia-500/5',
                       DOGE: 'border-yellow-500/30 text-yellow-500 bg-yellow-500/5',
+                      ALPHA: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/5',
                     }[c];
                     return (
                       <button
@@ -984,7 +985,7 @@ export const PayoutConsole: React.FC = () => {
                 <div>
                   <span className="text-white/40 block font-semibold">Onhold Balance:</span>
                   <span className="font-extrabold text-white">
-                    {activeCryptoWalletBalance.toFixed(selectedCrypto === 'DOGE' ? 2 : selectedCrypto === 'SOL' ? 4 : 6)} {selectedCrypto}
+                    {activeCryptoWalletBalance.toFixed(selectedCrypto === 'DOGE' || selectedCrypto === 'ALPHA' ? 2 : selectedCrypto === 'SOL' ? 4 : 6)} {selectedCrypto}
                   </span>
                 </div>
                 <div className="text-right">
@@ -1139,7 +1140,7 @@ export const PayoutConsole: React.FC = () => {
                               Inbound Transfer Awaiting Claim
                             </span>
                             <div className="text-sm font-extrabold text-white">
-                              {amount.toFixed(crypto === 'DOGE' ? 1 : 4)} {crypto}
+                              {amount.toFixed(crypto === 'DOGE' || crypto === 'ALPHA' ? 1 : 4)} {crypto}
                               <span className="text-xs text-white/40 font-normal font-mono ml-1.5">≃ ${valueUSD.toFixed(2)}</span>
                             </div>
                             <div className="text-[9px] text-[#a0a0a0] font-mono break-all leading-normal">
@@ -1179,8 +1180,8 @@ export const PayoutConsole: React.FC = () => {
                   <label className="text-[10px] text-white/40 uppercase tracking-wider block mb-1.5 font-semibold">
                     Select Digital Asset
                   </label>
-                  <div className="grid grid-cols-5 gap-1.5 bg-[#050505] p-1 rounded-xl border border-white/5">
-                    {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
+                  <div className="grid grid-cols-6 gap-1.5 bg-[#050505] p-1 rounded-xl border border-white/5">
+                    {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE', 'ALPHA'] as const).map(c => {
                       const isSelected = transferAsset === c;
                       const cColors = {
                         HSC: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
@@ -1188,6 +1189,7 @@ export const PayoutConsole: React.FC = () => {
                         ETH: 'border-violet-500/30 text-violet-400 bg-violet-500/5',
                         SOL: 'border-fuchsia-500/30 text-[#e879f9] bg-fuchsia-500/5',
                         DOGE: 'border-yellow-500/30 text-yellow-500 bg-yellow-500/5',
+                        ALPHA: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/5',
                       }[c];
                       return (
                         <button
@@ -1215,7 +1217,7 @@ export const PayoutConsole: React.FC = () => {
                   <div>
                     <span className="text-white/40 block font-semibold text-left">Available Allocation:</span>
                     <span className="font-extrabold text-white text-[11px] block text-left">
-                      {(transferAsset === activeCrypto ? coins : (balances[transferAsset] ?? 0)).toFixed(transferAsset === 'DOGE' ? 2 : 5)} {transferAsset}
+                      {(transferAsset === activeCrypto ? coins : (balances[transferAsset] ?? 0)).toFixed(transferAsset === 'DOGE' || transferAsset === 'ALPHA' ? 2 : 5)} {transferAsset}
                     </span>
                   </div>
                   <div className="text-right font-mono">
@@ -1917,7 +1919,8 @@ export const PayoutConsole: React.FC = () => {
                   BTC: 'text-amber-450',
                   ETH: 'text-violet-400',
                   SOL: 'text-fuchsia-400',
-                  DOGE: 'text-yellow-400'
+                  DOGE: 'text-yellow-400',
+                  ALPHA: 'text-cyan-400'
                 }[tx.crypto || 'HSC'] || 'text-[#a0a0a0]';
 
                 const isExpanded = expandedTxId === tx.id;
@@ -2389,7 +2392,7 @@ export const PayoutConsole: React.FC = () => {
                   <span>Net Output Settled</span>
                   <span className="font-bold text-emerald-400">
                     {selectedTx.type === 'crypto' 
-                      ? `${(selectedTx.amountCoin - selectedTx.fee).toFixed(selectedTx.crypto === 'DOGE' ? 2 : 5)} ${selectedTx.crypto || 'HSC'}`
+                      ? `${(selectedTx.amountCoin - selectedTx.fee).toFixed(selectedTx.crypto === 'DOGE' || selectedTx.crypto === 'ALPHA' ? 2 : 5)} ${selectedTx.crypto || 'HSC'}`
                       : formatVal(selectedTx.amountUSD - selectedTx.fee)
                     }
                   </span>
@@ -2651,6 +2654,7 @@ export const PayoutConsole: React.FC = () => {
             case 'ETH': return 'bg-purple-500 text-purple-400';
             case 'SOL': return 'bg-fuchsia-500 text-fuchsia-400';
             case 'DOGE': return 'bg-yellow-500 text-yellow-500';
+            case 'ALPHA': return 'bg-cyan-500 text-cyan-400';
             default: return 'bg-white/40 text-white/50';
           }
         };

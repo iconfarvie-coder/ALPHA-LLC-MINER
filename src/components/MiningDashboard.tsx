@@ -426,6 +426,7 @@ export const MiningDashboard: React.FC = () => {
                     SOL: 'text-fuchsia-450 bg-fuchsia-450/10 border-fuchsia-300/20',
                     DOGE: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20',
                     HSC: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+                    ALPHA: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
                   }[tx.crypto as string] || 'text-white bg-white/10';
 
                   return (
@@ -488,6 +489,7 @@ export const MiningDashboard: React.FC = () => {
               ETH: 'text-violet-400',
               SOL: 'text-fuchsia-450',
               DOGE: 'text-yellow-400',
+              ALPHA: 'text-cyan-400',
             }[activeCrypto] || 'text-emerald-400';
             return (
               <span
@@ -555,8 +557,8 @@ export const MiningDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 w-full pt-1">
-            {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE'] as const).map(c => {
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5 w-full pt-1">
+            {(['BTC', 'HSC', 'ETH', 'SOL', 'DOGE', 'ALPHA'] as const).map(c => {
               const isActive = activeCrypto === c;
               const isMined = activeMiners[c] ?? false;
               
@@ -566,6 +568,7 @@ export const MiningDashboard: React.FC = () => {
                 ETH: { name: 'Ethereum', color: 'text-violet-400', border: 'border-violet-500/20', bg: 'bg-violet-500/[0.02]', activeBg: 'bg-violet-500/10 border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.15)]' },
                 SOL: { name: 'Solana', color: 'text-fuchsia-400', border: 'border-fuchsia-500/20', bg: 'bg-fuchsia-500/[0.02]', activeBg: 'bg-fuchsia-500/10 border-fuchsia-500/40 shadow-[0_0_15px_rgba(232,121,249,0.15)]' },
                 DOGE: { name: 'Dogecoin', color: 'text-yellow-500', border: 'border-yellow-500/20', bg: 'bg-yellow-500/[0.02]', activeBg: 'bg-yellow-500/10 border-yellow-500/40 shadow-[0_0_15px_rgba(234,179,8,0.15)]' },
+                ALPHA: { name: 'Alpha Coin', color: 'text-cyan-400', border: 'border-cyan-500/20', bg: 'bg-cyan-500/[0.02]', activeBg: 'bg-cyan-500/10 border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.15)]' },
               }[c];
 
               const bVal = c === activeCrypto ? coins : (balances[c] ?? 0);
@@ -700,8 +703,9 @@ export const MiningDashboard: React.FC = () => {
                 ETH: 'text-violet-400',
                 SOL: 'text-fuchsia-450',
                 DOGE: 'text-yellow-500',
+                ALPHA: 'text-cyan-400',
               }[activeCrypto] || 'text-white'}`} />
-              <span>{coins.toFixed(activeCrypto === 'DOGE' ? 2 : activeCrypto === 'SOL' ? 4 : 6)}</span>
+              <span>{coins.toFixed(activeCrypto === 'DOGE' || activeCrypto === 'ALPHA' ? 2 : activeCrypto === 'SOL' ? 4 : 6)}</span>
             </div>
           </div>
           <div className="text-right">

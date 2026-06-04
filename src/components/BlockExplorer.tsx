@@ -119,6 +119,7 @@ export function BlockExplorer() {
     SOL: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', glow: 'shadow-purple-500/5', networkName: 'Solana High-Performance (SVM)' },
     DOGE: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20', glow: 'shadow-yellow-500/5', networkName: 'Dogecoin AuxPoW Network' },
     HSC: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', glow: 'shadow-emerald-500/5', networkName: 'Hyper Sovereign Consensus' },
+    ALPHA: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20', glow: 'shadow-cyan-500/5', networkName: 'Alpha Consensus Sharded Mainnet' },
   };
 
   const getCryptoProps = (crypto: string) => {
@@ -300,7 +301,7 @@ export function BlockExplorer() {
             {/* Currency selector filter */}
             <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
               <span className="text-[10px] text-white/30 uppercase font-semibold shrink-0 hidden lg:inline">Network:</span>
-              {['ALL', 'HSC', 'BTC', 'ETH', 'SOL', 'DOGE'].map(c => {
+              {['ALL', 'HSC', 'BTC', 'ETH', 'SOL', 'DOGE', 'ALPHA'].map(c => {
                 const isActive = selectedCrypto === c;
                 return (
                   <button
@@ -534,7 +535,7 @@ export function BlockExplorer() {
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {['HSC', 'BTC', 'ETH', 'SOL', 'DOGE'].map(c => {
+                {['HSC', 'BTC', 'ETH', 'SOL', 'DOGE', 'ALPHA'].map(c => {
                   const props = getCryptoProps(c);
                   const randomHash = '00000000' + Math.random().toString(36).substring(2, 10).toUpperCase() + '...' + Math.random().toString(36).substring(2, 6).toUpperCase();
                   
