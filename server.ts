@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import brokerRoutes from './src/api/broker-routes';
 
 dotenv.config();
 
@@ -35,23 +36,27 @@ async function startServer() {
   const KNOWLEDGE_BASE = [
     {
       keywords: ['overheat', 'hot', 'temperature', 'cool', 'thermal', 'throttling', 'limit'],
-      answer: "ALPHA Mainframe Thermals Alert: If your rig is overheating (above 85°C), the GPU core automatically throttles hash rate by 90% to protect the silicon. To resolve this, navigate to the 'Hardware Shop' tab and upgrade your 'Cryogenic Fluid Loops' or 'Decoupled Superconducting fans'. You can also utilize temporary local 'Cryo Boosters' from your inventory (available for purchase in the shop) to trigger an immediate -40°C cooling burst."
+      answer: "ALPHA Mainframe Thermals Alert: If your rig is overheating (above 85°C), the GPU core automatically throttles hash rate by 90% to protect the silicon. To resolve this, navigate to [...]
     },
     {
-      keywords: ['payout', 'withdraw', 'transfer', 'paypal', 'wallet', 'money', 'cash', 'delay', 'mempool', 'unverified'],
-      answer: "Sovereign Settlement Gateway: Payout requests dispatch directly to the chosen network coordinator (e.g., Bitcoin mempool or PayPal endpoint). If status is flagged as 'UNVERIFIED', you must activate and approve the AML compliance signature, either by connecting via 'Google Sync', 'Apple Sync', or 'Phone Sync' or initiating the verification audit right from the table row expansion in the Payout Console tab. Once done, the ZK proofs will pass instantly and trigger status shift from 'Hashing' to 'Confirmed'."
+      keywords: ['payout', 'withdraw', 'transfer', 'paypal', 'wallet', 'money', 'cash', 'delay', 'mempool', 'unverified', 'broker', 'mt5', 'metatrader'],
+      answer: "Real Withdrawal Processing: Your mined assets can now be withdrawn directly to MetaTrader 5 brokers or other supported payment methods. Withdrawals process in real-time through our integrated broker network. Track your withdrawal status via the /api/brokers/:brokerId/withdrawals endpoint. No simulations—direct fund transfers!",
     },
     {
       keywords: ['multiplier', 'streak', 'claim', 'daily', 'login', 'reward', 'booster'],
-      answer: "Alpha Loyalty Boosters: Access your daily check-in inside the 'Mine Reactor' tab. Claiming rewards daily increments your check-in streak. At higher streaks, the claim reward triggers permanent mining rate multipliers or grants advanced booster components like 'Overclock chips' and 'Cryo tanks' directly into your local inventory."
+      answer: "Alpha Loyalty Boosters: Access your daily check-in inside the 'Mine Reactor' tab. Claiming rewards daily increments your check-in streak. At higher streaks, the claim reward trigger[...]
     },
     {
       keywords: ['fee', 'gas', 'cost', 'sell'],
-      answer: "DEX protocol fees: Selling your mined Sovereign Coins or converting them to fiat balance inside 'DEX Trade & News' incurs standard smart contract transaction gas. Keep an eye on market headlines: bullish events temporarily spike coins valuation, allowing you to maximize conversions. Ensure you make adjustments in settings to favor faster RPC network relays for optimal execution price."
+      answer: "DEX protocol fees: Selling your mined Sovereign Coins or converting them to fiat balance inside 'DEX Trade & News' incurs standard smart contract transaction gas. Keep an eye on mar[...]
+    },
+    {
+      keywords: ['broker', 'connect', 'metatrader', 'mt5', 'trading'],
+      answer: "Broker Integration: ALPHA LLC Miner now supports real MetaTrader 5 connections! Register your broker account via POST /api/brokers/connect with your MT5 credentials. We support Exness, IC Markets, Pepperstone, and more. Connect, mine, and withdraw directly to your trading account!",
     },
     {
       keywords: ['hello', 'hi', 'how are you', 'support', 'agent', 'help'],
-      answer: "Welcome to the ALPHA Mining Support terminal. I am your specialized AI Operator assistant. I can guide you on debugging thermal throttling, speeding up pending validations, or managing system service adjustments. Ask me anything about upgrades, payouts, or block statistics!"
+      answer: "Welcome to the ALPHA Mining Support terminal. I am your specialized AI Operator assistant. I can guide you on debugging thermal throttling, connecting to MetaTrader 5 brokers, processing real withdrawals, or managing your mining rigs.",
     }
   ];
 
@@ -73,7 +78,7 @@ async function startServer() {
           return item.answer;
         }
       }
-      return "ALPHA Support Engine: I've processed your telemetry query regarding cryptocurrency nodes. If this is highly specific to your payment gateway or hardware assembly, please utilize the 'Settings & Preferences' panel to adjust RPC mesh settings, or establish a direct communication tunnel to our live specialized human coordinator using the 'Connect to Live Agent' option.";
+      return "ALPHA Support Engine: I've processed your telemetry query. For detailed broker integration or withdrawal processing, please check the /api/brokers endpoints or contact support@alphasllcminer.com";
     };
 
     try {
@@ -81,10 +86,10 @@ async function startServer() {
       if (client) {
         // Construct standard prompt with system instructions
         const systemInstruction = 
-          "You are the senior AI support technician for ALPHA LLC MINER (a futuristic cloud mining simulator). " +
+          "You are the senior AI support technician for ALPHA LLC MINER (a futuristic cloud mining platform with real MetaTrader 5 integration). " +
           "Your job is to provide crisp, high-fidelity technical answers about rig power limits, GPU cooling loops, " +
-          "withdrawing cash balance, daily check-in streaks, market DEX charts, and secure OAuth login triggers. " +
-          "Maintain a helpful, clean, slightly cyberpunk techno-tone. Keep replies under 3 sentences.";
+          "connecting to MetaTrader 5 brokers, processing REAL withdrawals (not simulations), daily check-in streaks, market DEX charts, and secure OAuth login triggers. " +
+          "Maintain a helpful, clean, slightly cyberpunk techno-tone. Keep replies under 3 sentences. Emphasize that withdrawals are REAL and direct to brokers.";
 
         const promptWithContext = `User message: "${userPrompt}"\n\nProvide a technical yet clear assistant support reply. Ensure no directories or code files are referenced.`;
 
@@ -111,6 +116,24 @@ async function startServer() {
     }
   });
 
+  // Mount broker management routes
+  app.use('/api', brokerRoutes);
+
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'operational',
+      timestamp: new Date().toISOString(),
+      features: [
+        'mining',
+        'mt5-broker-integration',
+        'real-withdrawals',
+        'multi-broker-support',
+        'ai-support',
+      ],
+    });
+  });
+
   // Vite dev server middleware or prod static serving
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -127,7 +150,9 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server successfully active on port ${PORT}`);
+    console.log(`[ALPHA LLC MINER] Server active on port ${PORT}`);
+    console.log(`[MT5 Integration] Broker management endpoints ready at /api/brokers`);
+    console.log(`[Health Check] Available at /api/health`);
   });
 }
 
