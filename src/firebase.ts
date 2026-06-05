@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -92,6 +92,27 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     throw error;
   } finally {
     isSigningIn = false;
+  }
+};
+
+export const emailSignUp = async (email: string, password: string, displayName: string): Promise<User> => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(result.user, { displayName });
+    return result.user;
+  } catch (error: any) {
+    console.error('Email sign up error:', error);
+    throw error;
+  }
+};
+
+export const emailSignIn = async (email: string, password: string): Promise<User> => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return result.user;
+  } catch (error: any) {
+    console.error('Email sign in error:', error);
+    throw error;
   }
 };
 

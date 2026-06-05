@@ -11,12 +11,20 @@ export async function saveUserProfile(
   profile: UserProfile,
   coins: number,
   usd: number,
-  lifetimeMined: number
+  lifetimeMined: number,
+  additionalData?: {
+    upgrades?: any[];
+    balances?: any;
+    boosterInventory?: any;
+    activeBoosters?: any[];
+    dailyReward?: any;
+    activeCrypto?: string;
+  }
 ) {
   const path = `users/${userId}`;
   try {
     const docRef = doc(db, 'users', userId);
-    const data = {
+    const data: any = {
       uid: profile.uid,
       name: profile.name,
       email: profile.email || null,
@@ -27,6 +35,28 @@ export async function saveUserProfile(
       lifetimeMined: Number(lifetimeMined.toFixed(8)),
       createdAt: profile.createdAt || Date.now()
     };
+    
+    if (additionalData) {
+      if (additionalData.upgrades !== undefined) {
+        data.upgrades = additionalData.upgrades;
+      }
+      if (additionalData.balances !== undefined) {
+        data.balances = additionalData.balances;
+      }
+      if (additionalData.boosterInventory !== undefined) {
+        data.boosterInventory = additionalData.boosterInventory;
+      }
+      if (additionalData.activeBoosters !== undefined) {
+        data.activeBoosters = additionalData.activeBoosters;
+      }
+      if (additionalData.dailyReward !== undefined) {
+        data.dailyReward = additionalData.dailyReward;
+      }
+      if (additionalData.activeCrypto !== undefined) {
+        data.activeCrypto = additionalData.activeCrypto;
+      }
+    }
+    
     await setDoc(docRef, data, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

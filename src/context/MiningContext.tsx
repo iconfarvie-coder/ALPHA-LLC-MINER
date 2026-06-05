@@ -107,6 +107,7 @@ interface MiningContextType {
   toasts: AppToast[];
   addToast: (toast: Omit<AppToast, 'id' | 'timestamp'>) => void;
   removeToast: (id: string) => void;
+  playSound: (type: any) => void;
 }
 
 const MiningContext = createContext<MiningContextType | undefined>(undefined);
@@ -544,9 +545,42 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const { getUserProfile, saveUserProfile, getPayoutTransactions } = await import('../firebaseSync');
         const dbProfile = await getUserProfile(newUser.uid);
         if (dbProfile) {
-          if (dbProfile.coins !== undefined) setCoins(dbProfile.coins);
-          if (dbProfile.usd !== undefined) setUsd(dbProfile.usd);
-          if (dbProfile.lifetimeMined !== undefined) setLifetimeMined(dbProfile.lifetimeMined);
+          if (dbProfile.coins !== undefined) {
+            setCoins(dbProfile.coins);
+            localStorage.setItem('fast_miner_coins', dbProfile.coins.toString());
+          }
+          if (dbProfile.usd !== undefined) {
+            setUsd(dbProfile.usd);
+            localStorage.setItem('fast_miner_usd', dbProfile.usd.toString());
+          }
+          if (dbProfile.lifetimeMined !== undefined) {
+            setLifetimeMined(dbProfile.lifetimeMined);
+            localStorage.setItem('fast_miner_lifetime', dbProfile.lifetimeMined.toString());
+          }
+          if (dbProfile.balances !== undefined) {
+            setBalances(dbProfile.balances);
+            localStorage.setItem('fast_miner_balances', JSON.stringify(dbProfile.balances));
+          }
+          if (dbProfile.upgrades !== undefined) {
+            setUpgrades(dbProfile.upgrades);
+            localStorage.setItem('fast_miner_upgrades', JSON.stringify(dbProfile.upgrades));
+          }
+          if (dbProfile.boosterInventory !== undefined) {
+            setInventory(dbProfile.boosterInventory);
+            localStorage.setItem('fast_miner_booster_inventory', JSON.stringify(dbProfile.boosterInventory));
+          }
+          if (dbProfile.activeBoosters !== undefined) {
+            setActiveBoosters(dbProfile.activeBoosters);
+            localStorage.setItem('fast_miner_active_boosters', JSON.stringify(dbProfile.activeBoosters));
+          }
+          if (dbProfile.dailyReward !== undefined) {
+            setDailyReward(dbProfile.dailyReward);
+            localStorage.setItem('fast_miner_daily_reward', JSON.stringify(dbProfile.dailyReward));
+          }
+          if (dbProfile.activeCrypto !== undefined) {
+            setActiveCryptoState(dbProfile.activeCrypto);
+            localStorage.setItem('fast_miner_active_crypto', dbProfile.activeCrypto);
+          }
           
           const dbPayouts = await getPayoutTransactions(newUser.uid);
           if (dbPayouts && dbPayouts.length > 0) {
@@ -555,8 +589,15 @@ export const MiningProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
           setNotification(`🎉 Sync Success: Securely loaded historical stats from your Cloud Profile Ledger.`);
         } else {
-          // Initialize user profile document in Firestore
-          await saveUserProfile(newUser.uid, newUser, coins, usd, lifetimeMined);
+          // Initialize user profile document in Firestore with current local stats
+          await saveUserProfile(newUser.uid, newUser, coins, usd, lifetimeMined, {
+            upgrades,
+            balances,
+            boosterInventory: inventory,
+            activeBoosters,
+            dailyReward,
+            activeCrypto
+          });
           setNotification(`🎉 Sync Success: Provisioned a secure node profile on the Cloud Ledger.`);
         }
       } catch (err: any) {
@@ -1370,6 +1411,7 @@ ops@hashsovereign.net`
     activeMiners,
     mineAllCoins,
     isSystemOn,
+    balances,
   });
 
   // Keep the ref updated on every render
@@ -1390,8 +1432,35 @@ ops@hashsovereign.net`
       activeMiners,
       mineAllCoins,
       isSystemOn,
+      balances,
     };
-  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats, activeMiners, mineAllCoins, isSystemOn]);
+  }, [upgrades, activeBoosters, inventory, isClusterAutoMining, prices, activeCrypto, coins, usd, lifetimeMined, user, isDynamicCoolingActive, stats, activeMiners, mineAllCoins, isSystemOn, balances]);
+
+  const syncUserProfile = async (
+    targetUser = user,
+    targetCoins = coins,
+    targetUsd = usd,
+    targetLifetime = lifetimeMined,
+    passedUpgrades: MiningUpgrade[] | undefined = undefined,
+    passedInventory: BoosterInventory | undefined = undefined,
+    passedBalances: Record<string, number> | undefined = undefined
+  ) => {
+    if (!targetUser || targetUser.uid.startsWith('user_')) return;
+    try {
+      const { saveUserProfile } = await import('../firebaseSync');
+      const current = miningStateRef.current;
+      await saveUserProfile(targetUser.uid, targetUser, targetCoins, targetUsd, targetLifetime, {
+        upgrades: passedUpgrades ?? current.upgrades,
+        balances: passedBalances ?? current.balances,
+        boosterInventory: passedInventory ?? current.inventory,
+        activeBoosters: current.activeBoosters,
+        dailyReward,
+        activeCrypto: current.activeCrypto
+      });
+    } catch (err: any) {
+      console.warn('Real-time ledger sync bypassed or failed (expected for sandbox accounts):', err);
+    }
+  };
 
   // Auto-save fast-changing variables periodically (every 3 seconds) to prevent heavy main thread blocking
   useEffect(() => {
@@ -1414,12 +1483,11 @@ ops@hashsovereign.net`
       setPerformanceHistory(prev => [...prev, newRec].slice(-1000));
 
       // If simulated mode is disabled and they are logged in, sync instantly to database and append storage log
-      if (current.user && current.user.uid) {
+      if (current.user && current.user.uid && !current.user.uid.startsWith('user_')) {
         const isSimDisabled = localStorage.getItem('fast_miner_disable_simulation') === 'true';
         if (isSimDisabled) {
           try {
-            const { saveUserProfile } = await import('../firebaseSync');
-            await saveUserProfile(current.user.uid, current.user, current.coins, current.usd, current.lifetimeMined);
+            await syncUserProfile(current.user, current.coins, current.usd, current.lifetimeMined);
             
             const timestamp = new Date().toLocaleTimeString();
             const logLine = `[storage] [${timestamp}] Saved state to database (UID: ${current.user.uid.substring(0,8)}...). Balance = ${current.coins.toFixed(6)} ${current.activeCrypto}, Valuation = $${current.usd.toFixed(2)}`;
@@ -3294,15 +3362,16 @@ clearing@hashsovereign.net`;
         unsubscribe = initAuth(
           (firebaseUser, token) => {
             // Automatically log in and restore cloud stats on page open
+            const providerId = firebaseUser.providerData[0]?.providerId === 'password' ? 'email' : 'google';
             login(
-              'google', 
+              providerId, 
               firebaseUser.email || firebaseUser.uid, 
-              firebaseUser.displayName || 'Google Member', 
+              firebaseUser.displayName || (providerId === 'email' ? 'Email Operator' : 'Google Member'), 
               firebaseUser.uid
             );
           },
           () => {
-            if (miningStateRef.current.user?.provider === 'google') {
+            if (miningStateRef.current.user?.provider === 'google' || miningStateRef.current.user?.provider === 'email') {
               setUser(null);
               localStorage.removeItem('fast_miner_user');
             }
@@ -3323,12 +3392,8 @@ clearing@hashsovereign.net`;
     if (!user || user.uid.startsWith('user_')) return;
     
     const interval = setInterval(async () => {
-      try {
-        const { saveUserProfile } = await import('../firebaseSync');
-        await saveUserProfile(user.uid, user, miningStateRef.current.coins, miningStateRef.current.usd, miningStateRef.current.lifetimeMined);
-      } catch (err) {
-        console.error('Periodic stats save failed:', err);
-      }
+      const current = miningStateRef.current;
+      await syncUserProfile(user, current.coins, current.usd, current.lifetimeMined);
     }, 15000);
     
     return () => clearInterval(interval);
@@ -3444,6 +3509,7 @@ clearing@hashsovereign.net`;
       toasts,
       addToast,
       removeToast,
+      playSound,
     }}>
       {children}
     </MiningContext.Provider>

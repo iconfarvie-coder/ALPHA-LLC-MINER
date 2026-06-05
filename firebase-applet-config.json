@@ -3,7 +3,8 @@
   "appId": "1:872537894147:web:515719d6a0d586b3fb8d36",
   "apiKey": "AIzaSyBSpQdFyu1vgXTN3cgARbYxPW5Gs1RT4EA",
   "authDomain": "alpha-cloud-1cd8d.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-6a119256-2f91-4fb9-b106-ea89ead001c3",
   "storageBucket": "alpha-cloud-1cd8d.firebasestorage.app",
   "messagingSenderId": "872537894147",
-  "measurementId": ""
+  "measurementId": "G-LLW31GS1WE"
 }
