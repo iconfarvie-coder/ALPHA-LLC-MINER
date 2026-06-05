@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  alpha-miner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alpha-llc-miner
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - APP_URL=${APP_URL}
+      - BROKER_PRIMARY_CODE=${BROKER_PRIMARY_CODE}
+      - BROKER_PRIMARY_USERNAME=${BROKER_PRIMARY_USERNAME}
+      - BROKER_PRIMARY_PASSWORD=${BROKER_PRIMARY_PASSWORD}
+      - BROKER_PRIMARY_ACCOUNT_NUMBER=${BROKER_PRIMARY_ACCOUNT_NUMBER}
+      - BROKER_PRIMARY_ACCOUNT_TYPE=${BROKER_PRIMARY_ACCOUNT_TYPE}
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - alpha-network
+
+networks:
+  alpha-network:
+    driver: bridge
